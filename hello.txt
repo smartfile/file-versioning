@@ -1,0 +1,9 @@
+hello world.....
+this works......
+
+
+This wrapper only exposes the most common operations that librsync provides.
+It is not meant to be a full wrapper, but should cover most use-cases.
+You can easily extend this wrapper.
+Information about librsync is available in it's manual which is linked 
+below (I wish I had found this BEFORE writing this wrapper!)
