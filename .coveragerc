@@ -1,0 +1,10 @@
+[run]
+omit =
+    tests.py
+include =
+    backup.py
+
+[report]
+exclude_lines =
+    if __name__ == .__main__.:
+    pragma: no cover
