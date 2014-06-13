@@ -1,5 +1,5 @@
 from datetime import datetime
-import json
+import hashlib
 import logging
 import os
 import random
@@ -10,19 +10,38 @@ from subprocess import Popen, PIPE
 from fs.base import FS
 from fs.errors import ResourceInvalidError, ResourceNotFoundError
 
-from errors import SnapshotError, SnapshotInfoError
+from errors import SnapshotError
+
+
+class VersionManager(object):
+    """
+    Base class for managing versions of files.
+    """
+    def version(self, path):
+        raise NotImplementedError
+
+    def set_version(self, path, version):
+        raise NotImplementedError
+
+    def remove(self, path):
+        raise NotImplementedError
+
+    def _update_version(self, path):
+        version = self.version(path)
+        if version is None:
+            version = 0
+        version += 1
+        self.set_version(path, version)
 
 
 class VersioningFS(FS):
-    def __init__(self, user_files, backup_dir, snapshot_info, tmp):
+    def __init__(self, version_manager, user_files, backup_dir, tmp):
         self.__logger = logging.getLogger('versioningfs')
 
+        self._v_manager = version_manager
         self._user_files = user_files
         self.__backup = backup_dir
-        self.__snapshot_info = snapshot_info
-        self._tmp = tmp
-
-        self.__last_snapshot = None
+        self._tmp = os.path.join(tmp, 'versioningfs')
 
     def open(self, path, mode, version=None):
         """
@@ -42,7 +61,10 @@ class VersioningFS(FS):
             open_file = open(name=abs_path, mode=mode)
             return FileWrapper(fs=self, file_object=open_file)
         else:
-            if version == self.version(path):
+            if version < 1:
+                raise ResourceNotFoundError("Version %s not found" % \
+                                            (version))
+            if version == self._v_manager.version(path):
                 abs_path = os.path.join(self._user_files, path)
                 open_file = open(name=abs_path, mode=mode)
                 return FileWrapper(fs=self, file_object=open_file)
@@ -69,13 +91,13 @@ class VersioningFS(FS):
                     versions[dt_parse(time)] = os.path.join(root, name)
 
             sorted_versions = sorted(versions.iterkeys())
-            if version > len(sorted_versions) - 1:
+            if version > len(sorted_versions):
                 raise ResourceNotFoundError("Version %s not found" % \
                                             (version))
 
-            requested_path = versions[sorted_versions[version]]
+            requested_path = versions[sorted_versions[version-1]]
 
-            if mode == "r" or mode == "rb":
+            if "w" not in mode:
                 src_path = requested_path
 
                 temp_name = '%020x' % random.randrange(16**30)
@@ -107,41 +129,9 @@ class VersioningFS(FS):
 
         os.remove(user_file)
 
-        snap_source_dir = self.__snapshot_source(path)
-        shutil.rmtree(snap_source_dir)
-
-        if self.has_snapshot(path):
+        if self._v_manager.has_snapshot(path):
             snap_dest_dir = self.__snapshot_snap_path(path)
-            info_path = self.__snapshot_info_path(path)
-
             shutil.rmtree(snap_dest_dir)
-            os.remove(info_path)
-
-    def has_snapshot(self, path):
-        """Returns the snapshot status of a path."""
-
-        info_path = self.__snapshot_info_path(path)
-
-        if os.path.isfile(info_path):
-            return True
-
-        return False
-
-    def version(self, path):
-        """
-        Returns the current version of a given file. Starts at 0.
-        """
-        info_path = self.__snapshot_info_path(path)
-
-        if os.path.isfile(info_path):
-            with open(info_path, 'rb') as f:
-                json_data = json.loads(f.read())
-                version = json_data['version']
-        else:
-            raise SnapshotInfoError("There is no snapshot information for "
-                                    "the given path.")
-
-        return version
 
     def snapshot(self, path):
         """
@@ -151,14 +141,16 @@ class VersioningFS(FS):
         snap_source_dir = self.__snapshot_source(path)
         snap_dest_dir = self.__snapshot_snap_path(path)
 
-        if not self.has_snapshot(path):
-            os.makedirs(snap_source_dir)
+        os.makedirs(snap_source_dir)
+        if not self._v_manager.has_snapshot(path):
             os.makedirs(snap_dest_dir)
 
-            # create a hard link inside of a folder within the snapshot dir
-            link_src = os.path.join(self._user_files, path)
-            link_dst = os.path.join(snap_source_dir, str(hash(path)))
-            os.link(link_src, link_dst)
+        # create a hard link inside of a folder within the snapshot dir
+        link_src = os.path.join(self._user_files, path)
+
+        dest_hash = hashlib.sha256(path).hexdigest()
+        link_dst = os.path.join(snap_source_dir, dest_hash)
+        os.link(link_src, link_dst)
 
         src_path, dest_path = snap_source_dir, snap_dest_dir
 
@@ -169,37 +161,15 @@ class VersioningFS(FS):
 
         ignore = [lambda x: x.startswith("Warning: could not determine case")]
 
-
         if len(stderr) is not 0:
             for rule in ignore:
                 if not rule(stderr):
                     raise SnapshotError(stderr)
 
         # update the version of the file
-        self._update_version(path)
+        self._v_manager._update_version(path)
 
-
-    def _update_version(self, path):
-        """
-        Increases the version number for a given path.
-        """
-        info_path = self.__snapshot_info_path(path)
-
-        # if a snapshot file exists, try reading the version info
-        version = -1
-        if os.path.isfile(info_path):
-            with open(info_path, 'rb') as f:
-                json_data = json.loads(f.read())
-                version = json_data['version']
-
-        # increase the version number
-        version += 1
-
-        # write the version info back to the snapshot info file
-        with open(info_path, 'wb') as f:
-            data = {'version': version}
-            json_data = json.dumps(data)
-            f.write(json_data)
+        shutil.rmtree(snap_source_dir)
 
     def __snapshot_info_path(self, path):
         """Returns the snapshot info file path for a given path."""
@@ -208,15 +178,18 @@ class VersioningFS(FS):
         stripped_path = relative_path.replace("./", "", 1)
 
         # find where the snapshot info file should be
-        info_filename = "%s.info" % (hash(stripped_path))
-        info_path = os.path.join(self.__snapshot_info, info_filename)
+        dest_hash = hashlib.sha256(stripped_path).hexdigest()
+        info_filename = "%s.info" % (dest_hash)
+        info_path = os.path.join(self._tmp, info_filename)
 
         return info_path
 
     def __snapshot_snap_path(self, path):
         """Returns the dir containing the snapshots for a given path."""
 
-        save_snap_dir = os.path.join(self.__backup, str(hash(path)))
+        dest_hash = hashlib.sha256(path).hexdigest()
+
+        save_snap_dir = os.path.join(self.__backup, dest_hash)
         return save_snap_dir
 
     def __snapshot_source(self, path):

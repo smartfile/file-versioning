@@ -6,12 +6,10 @@ import tempfile
 import time
 import unittest
 
-from versioning import VersioningFS
-from versioning.errors import SnapshotInfoError
+from versioning_fs import VersioningFS, VersionManager
 
 
 PATHS = {'BACKUPS': 'backups',
-         'SNAPSHOT_INFO': 'snapshot_info',
          'USER_FILES': 'userfiles',
          'TEMP': 'tmp'}
 
@@ -30,10 +28,7 @@ class Paths(dict):
     """
     def __init__(self, base_dir):
         self.__base_dir = base_dir
-        self.__paths = {'BACKUPS': 'backups',
-                        'SNAPSHOT_INFO': 'snapshot_info',
-                        'USER_FILES': 'userfiles',
-                        'TEMP': 'tmp'}
+        self.__paths = PATHS
 
     def __getattr__(self, attr):
         path = self.__paths[attr]
@@ -71,6 +66,28 @@ def random_filename(size=20):
     return ''.join(random.choice(chars) for _ in range(size))
 
 
+class DictVersionManager(VersionManager):
+    def __init__(self):
+        super(DictVersionManager, self).__init__()
+        self.__files = {}
+
+    def has_snapshot(self, path):
+        if self.__files.get(path) is not None:
+            return True
+        return False
+
+    def version(self, path):
+        version = self.__files.get(path)
+        return version
+
+    def set_version(self, path, version):
+        self.__files[path] = version
+
+    def remove(self, path):
+        if path in self.__files:
+            self.__files.pop(path, None)
+
+
 class BaseTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -90,8 +107,8 @@ class TestSnapshotAttributes(BaseTest):
     def setUp(self):
         super(TestSnapshotAttributes, self).setUp()
 
-        self.v = VersioningFS(self.paths.USER_FILES, self.paths.BACKUPS,
-                              self.paths.SNAPSHOT_INFO, self.paths.TEMP)
+        self.v = VersioningFS(DictVersionManager(), self.paths.USER_FILES,
+                              self.paths.BACKUPS, self.paths.TEMP)
 
     def test_snapshot_file_versions(self):
         # make sure no snapshot information exists yet
@@ -108,8 +125,8 @@ class TestSnapshotAttributes(BaseTest):
         generate_test_file(fs=self.v, path=abs_path, size=5*KB,
                            generator=file_contents)
 
-        # make sure each user file is version 0
-        self.assert_all_file_versions_equal(0)
+        # make sure each user file is version 1
+        self.assert_all_file_versions_equal(1)
 
         # generate file 2
         file_name = random_filename()
@@ -117,47 +134,37 @@ class TestSnapshotAttributes(BaseTest):
         generate_test_file(fs=self.v, path=abs_path, size=5*KB,
                            generator=file_contents)
 
-        # make sure each user file is version 0
-        self.assert_all_file_versions_equal(0)
+        # make sure each user file is version 1
+        self.assert_all_file_versions_equal(1)
 
         # take another snapshot of file 2
         time.sleep(1) # rsync-backup snapshots must be > 1 second apart
         self.v.snapshot(file_name)
-        # check that the file is at version 1
-        self.assertEqual(self.v.version(file_name), 1)
+
+        # check that the updated file is at version 2
+        self.assertEqual(self.v._v_manager.version(file_name), 2)
 
         # not all of the files will be at the same version
         with self.assertRaises(AssertionError):
-            self.assert_all_file_versions_equal(0)
+            self.assert_all_file_versions_equal(1)
 
         # check that only one file was updated to version 1
         self.v.remove(file_name)
-        self.assert_all_file_versions_equal(0)
+        self.assert_all_file_versions_equal(1)
 
         # make sure all files in the user folder have snapshot information
         self.assert_all_files_have_snapshot_info(should_exist=True)
 
-    def test_get_version_of_file_that_does_not_exist(self):
-        name = random_filename()
-        bad_path = os.path.join(self.paths.TEMP, name)
-
-        with self.assertRaises(SnapshotInfoError):
-            self.v.version(bad_path)
-
     def assert_all_file_versions_equal(self, version):
         for root, dirs, filenames in os.walk(self.paths.USER_FILES):
             for name in filenames:
-                path = os.path.join(root, name)
-
-                file_version = self.v.version(path)
+                file_version = self.v._v_manager.version(name)
                 self.assertEqual(file_version, version)
 
     def assert_all_files_have_snapshot_info(self, should_exist=True):
         for root, dirs, filenames in os.walk(self.paths.USER_FILES):
             for name in filenames:
-                path = os.path.join(root, name)
-                snapshot_info_exists = self.v.has_snapshot(path)
-
+                snapshot_info_exists = self.v._v_manager.has_snapshot(name)
                 self.assertEqual(snapshot_info_exists, should_exist)
 
 
@@ -168,8 +175,8 @@ class TestFileVersions(BaseTest):
     def setUp(self):
         super(TestFileVersions, self).setUp()
 
-        self.v = VersioningFS(self.paths.USER_FILES, self.paths.BACKUPS,
-                              self.paths.SNAPSHOT_INFO, self.paths.TEMP)
+        self.v = VersioningFS(DictVersionManager(), self.paths.USER_FILES,
+                              self.paths.BACKUPS, self.paths.TEMP)
 
     def test_single_file_updating(self):
         file_name = random_filename()
@@ -178,8 +185,8 @@ class TestFileVersions(BaseTest):
         f.write('smartfile_versioning_rocks\n')
         f.close()
 
-        # check that version 0 was created
-        self.assertEqual(self.v.version(file_name), 0)
+        # check that version 1 was created
+        self.assertEqual(self.v._v_manager.version(file_name), 1)
 
         f = self.v.open(file_name, 'rb')
         self.assertEqual(f.read(), 'smartfile_versioning_rocks\n')
@@ -191,14 +198,14 @@ class TestFileVersions(BaseTest):
         f = self.v.open(file_name, 'wb')
         f.write("hello world!")
         f.close()
-        self.assertEqual(self.v.version(file_name), 1)
+        self.assertEqual(self.v._v_manager.version(file_name), 2)
 
         # check the contents when we open the file
         f = self.v.open(file_name, 'rb')
         self.assertEqual(f.read(), "hello world!")
         f.close()
         # make sure the version has not been updated
-        self.assertEqual(self.v.version(file_name), 1)
+        self.assertEqual(self.v._v_manager.version(file_name), 2)
 
     def test_open_old_version(self):
         file_name = random_filename()
@@ -220,20 +227,20 @@ class TestFileVersions(BaseTest):
         f.close()
 
         # now try opening previous versions of the file and check content
-        f = self.v.open(file_name, 'rb', version=0)
+        f = self.v.open(file_name, 'rb', version=1)
         self.assertEqual(f.read(), "smartfile")
         f.close()
 
-        f = self.v.open(file_name, 'rb', version=1)
+        f = self.v.open(file_name, 'rb', version=2)
         self.assertEqual(f.read(), "smartfile versioning")
         f.close()
 
-        f = self.v.open(file_name, 'rb', version=2)
+        f = self.v.open(file_name, 'rb', version=3)
         self.assertEqual(f.read(), "smartfile versioning rocks")
         f.close()
 
         # the file version has not changed since we only read the version
-        self.assertEqual(self.v.version(file_name), 2)
+        self.assertEqual(self.v._v_manager.version(file_name), 3)
 
 
 if __name__ == "__main__":
