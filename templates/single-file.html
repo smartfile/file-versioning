@@ -1,0 +1,8 @@
+<b>Selected File:</b> {{ filename }}
+<br>
+{% for version in versions %}
+<a href="{{ url_for('version', filename=filename, version=version) }}">
+  Version {{ version }}
+</a>
+<br>
+{% endfor %}
