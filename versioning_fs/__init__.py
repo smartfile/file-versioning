@@ -5,6 +5,7 @@ import os
 import random
 import re
 import shutil
+from StringIO import StringIO
 from subprocess import Popen, PIPE
 
 from fs.base import FS
@@ -69,47 +70,39 @@ class VersioningFS(FS):
                 open_file = open(name=abs_path, mode=mode)
                 return FileWrapper(fs=self, file_object=open_file)
 
-            snap_dest_dir = self.__snapshot_snap_path(path)
-            increments_dir = os.path.join(snap_dest_dir,
-                                          "rdiff-backup-data/increments")
+            snap_dir = self.__snapshot_snap_path(path)
+            command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
+            process = Popen(command, stdout=PIPE, stderr=PIPE)
+            stdout, stderr = process.communicate()
 
-            def dt_parse(date_string):
-                date_string = date_string[::-1].split('-', 1)[1][::-1]
-                dt = datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S')
-                return dt
+            versions = []
+            listing_file = StringIO(stdout)
+            for line in listing_file:
+                timestamp, kind = line.split()
+                versions.append(timestamp)
 
-            versions = dict()
-
-            for root, dirs, filenames in os.walk(increments_dir):
-                for name in filenames:
-                    search = re.search(r'(^([^.]*).*)', name, re.M|re.I)
-
-                    filename = search.group(2)
-                    stripped_filename = name.lstrip("%s" % (filename))
-                    remove_chars = stripped_filename.replace(".", "")
-                    time = remove_chars.rstrip(".diff.gz")
-                    versions[dt_parse(time)] = os.path.join(root, name)
-
-            sorted_versions = sorted(versions.iterkeys())
+            sorted_versions = sorted(versions)
             if version > len(sorted_versions):
                 raise ResourceNotFoundError("Version %s not found" % \
                                             (version))
 
-            requested_path = versions[sorted_versions[version-1]]
-
+            requested_version = sorted_versions[version-1]
             if "w" not in mode:
-                src_path = requested_path
-
                 temp_name = '%020x' % random.randrange(16**30)
                 dest_path = os.path.join(self._tmp, temp_name)
-                command = ['rdiff-backup', '--parsable-output', src_path,
-                           dest_path]
+                command = ['rdiff-backup',
+                           '--restore-as-of', requested_version,
+                           snap_dir, dest_path]
                 process = Popen(command, stdout=PIPE, stderr=PIPE)
                 stdout, stderr = process.communicate()
 
-                open_file = open(name=dest_path, mode=mode)
+                dest_hash = hashlib.sha256(path).hexdigest()
+
+                out_file = os.path.join(dest_path, dest_hash)
+                open_file = open(name=out_file, mode=mode)
                 return FileWrapper(fs=self, file_object=open_file,
-                                   temp_file=True)
+                                   temp_file=True, remove=dest_path)
+
 
     def remove(self, path):
         """Remove a file from the filesystem.
@@ -132,6 +125,7 @@ class VersioningFS(FS):
         if self._v_manager.has_snapshot(path):
             snap_dest_dir = self.__snapshot_snap_path(path)
             shutil.rmtree(snap_dest_dir)
+
 
     def snapshot(self, path):
         """
@@ -202,7 +196,8 @@ class VersioningFS(FS):
 
 
 class FileWrapper(object):
-    def __init__(self, fs, file_object, temp_file=False, *args, **kwargs):
+    def __init__(self, fs, file_object, temp_file=False, remove=None, *args,
+                 **kwargs):
         self.__fs = fs
         self.__temp_file = temp_file
         self.__is_modified = False
@@ -211,6 +206,7 @@ class FileWrapper(object):
         path = self.__file_object.name.replace(self.__fs._user_files,
                                                      "")
         self._path = path.replace("/", "")
+        self.__remove = remove
 
     def write(self, *args, **kwargs):
         self.__file_object.write(*args, **kwargs)
@@ -230,7 +226,8 @@ class FileWrapper(object):
             self.__fs.snapshot(self._path)
 
         if self.__temp_file:
-            os.remove(self.__file_object.name)
+            remove = os.path.join(self.__fs._tmp, self.__remove)
+            shutil.rmtree(remove)
 
     def __getattr__(self, attr):
         return getattr(self.__file_object, attr)
