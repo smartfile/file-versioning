@@ -1,9 +1,7 @@
-from datetime import datetime
 import hashlib
 import logging
 import os
 import random
-import re
 import shutil
 from StringIO import StringIO
 from subprocess import Popen, PIPE
@@ -63,7 +61,7 @@ class VersioningFS(FS):
             return FileWrapper(fs=self, file_object=open_file)
         else:
             if version < 1:
-                raise ResourceNotFoundError("Version %s not found" % \
+                raise ResourceNotFoundError("Version %s not found" %
                                             (version))
             if version == self._v_manager.version(path):
                 abs_path = os.path.join(self._user_files, path)
@@ -83,7 +81,7 @@ class VersioningFS(FS):
 
             sorted_versions = sorted(versions)
             if version > len(sorted_versions):
-                raise ResourceNotFoundError("Version %s not found" % \
+                raise ResourceNotFoundError("Version %s not found" %
                                             (version))
 
             requested_version = sorted_versions[version-1]
@@ -102,7 +100,6 @@ class VersioningFS(FS):
                 open_file = open(name=out_file, mode=mode)
                 return FileWrapper(fs=self, file_object=open_file,
                                    temp_file=True, remove=dest_path)
-
 
     def remove(self, path):
         """Remove a file from the filesystem.
@@ -125,7 +122,6 @@ class VersioningFS(FS):
         if self._v_manager.has_snapshot(path):
             snap_dest_dir = self.__snapshot_snap_path(path)
             shutil.rmtree(snap_dest_dir)
-
 
     def snapshot(self, path):
         """
@@ -203,8 +199,7 @@ class FileWrapper(object):
         self.__is_modified = False
 
         self.__file_object = file_object
-        path = self.__file_object.name.replace(self.__fs._user_files,
-                                                     "")
+        path = self.__file_object.name.replace(self.__fs._user_files, "")
         self._path = path.replace("/", "")
         self.__remove = remove
 

@@ -45,7 +45,7 @@ class Paths(dict):
         return repr({n: self.__getattr__(n) for n in self.iterkeys()})
 
 
-def generate_test_file(fs, path, size, generator=None):
+def generate_file(fs, path, size, generator=None):
     with fs.open(path, 'wb') as f:
         if generator is None:
             text = '12345678'
@@ -58,7 +58,7 @@ def generate_test_file(fs, path, size, generator=None):
 def generate_user_files(fs, dir_path, count, size):
     for _ in range(count):
         path = os.path.join(dir_path, random_filename())
-        generate_test_file(fs, path, size)
+        generate_file(fs, path, size)
 
 
 def random_filename(size=20):
@@ -122,7 +122,7 @@ class TestSnapshotAttributes(BaseTest):
         # generate file 1
         file_name = random_filename()
         abs_path = os.path.join(self.paths.USER_FILES, file_name)
-        generate_test_file(fs=self.v, path=abs_path, size=5*KB,
+        generate_file(fs=self.v, path=abs_path, size=5*KB,
                            generator=file_contents)
 
         # make sure each user file is version 1
@@ -131,7 +131,7 @@ class TestSnapshotAttributes(BaseTest):
         # generate file 2
         file_name = random_filename()
         abs_path = os.path.join(self.paths.USER_FILES, file_name)
-        generate_test_file(fs=self.v, path=abs_path, size=5*KB,
+        generate_file(fs=self.v, path=abs_path, size=5*KB,
                            generator=file_contents)
 
         # make sure each user file is version 1
