@@ -10,7 +10,7 @@ from fs.tempfs import TempFS
 from fs.tests import FSTestCases
 from fs.tests import ThreadingTestCases
 
-from versioning_fs import VersioningFS, VersionManager
+from versioning_fs import VersioningFS
 
 
 KB = 1024
@@ -38,37 +38,14 @@ def random_filename(size=20):
     return ''.join(random.choice(chars) for _ in range(size))
 
 
-class DictVersionManager(VersionManager):
-    def __init__(self):
-        super(DictVersionManager, self).__init__()
-        self.__files = {}
-
-    def has_snapshot(self, path):
-        if self.__files.get(path) is not None:
-            return True
-        return False
-
-    def version(self, path):
-        version = self.__files.get(path)
-        return version
-
-    def set_version(self, path, version):
-        self.__files[path] = version
-
-    def remove(self, path):
-        if path in self.__files:
-            self.__files.pop(path, None)
-
-
 class BaseTest(unittest.TestCase):
     def setUp(self):
         self.__tempfs = TempFS()
         self.__scratch_dir = tempfile.mkdtemp()
 
         self.fs = VersioningFS(self.__tempfs,
-                              version_manager=DictVersionManager(),
-                              backup_dir='abcdefg', tmp=self.__scratch_dir,
-                              testing={'time': 1})
+                               backup_dir='abcdefg', tmp=self.__scratch_dir,
+                               testing={'time': 1})
 
     def tearDown(self):
         self.fs.close()
@@ -103,16 +80,16 @@ class TestSnapshotAttributes(BaseTest):
         # generate file 2
         file_name = random_filename()
         generate_file(fs=self.fs, path=file_name, size=5*KB,
-                           generator=file_contents)
+                      generator=file_contents)
 
         # make sure each user file is version 1
         self.assert_all_file_versions_equal(1)
 
-        # take another snapshot of file 2
-        self.fs.snapshot(file_name)
+        with self.fs.open(file_name, 'wb') as f:
+            f.write('hello world')
 
         # check that the updated file is at version 2
-        self.assertEqual(self.fs._v_manager.version(file_name), 2)
+        self.assertEqual(self.fs.version(file_name), 2)
 
         # not all of the files will be at the same version
         with self.assertRaises(AssertionError):
@@ -129,14 +106,14 @@ class TestSnapshotAttributes(BaseTest):
         for path in self.fs.walkfiles('/'):
             if not 'abcdefg' in path and 'tmp' not in path:
                 path = relpath(path)
-                file_version = self.fs._v_manager.version(path)
+                file_version = self.fs.version(path)
                 self.assertEqual(file_version, version)
 
     def assert_all_files_have_snapshot_info(self, should_exist=True):
         for path in self.fs.walkfiles('/'):
             if not 'abcdefg' in path and 'tmp' not in path:
                 path = relpath(path)
-                snapshot_info_exists = self.fs._v_manager.has_snapshot(path)
+                snapshot_info_exists = self.fs.has_snapshot(path)
                 self.assertEqual(snapshot_info_exists, should_exist)
 
 
@@ -152,7 +129,7 @@ class TestFileVersions(BaseTest):
         f.close()
 
         # check that version 1 was created
-        self.assertEqual(self.fs._v_manager.version(file_name), 1)
+        self.assertEqual(self.fs.version(file_name), 1)
 
         f = self.fs.open(file_name, 'rb')
         self.assertEqual(f.read(), 'smartfile_versioning_rocks\n')
@@ -162,14 +139,14 @@ class TestFileVersions(BaseTest):
         f = self.fs.open(file_name, 'wb')
         f.write("hello world!")
         f.close()
-        self.assertEqual(self.fs._v_manager.version(file_name), 2)
+        self.assertEqual(self.fs.version(file_name), 2)
 
         # check the contents when we open the file
         f = self.fs.open(file_name, 'rb')
         self.assertEqual(f.read(), "hello world!")
         f.close()
         # make sure the version has not been updated
-        self.assertEqual(self.fs._v_manager.version(file_name), 2)
+        self.assertEqual(self.fs.version(file_name), 2)
 
     def test_open_old_version(self):
         file_name = random_filename()
@@ -201,7 +178,7 @@ class TestFileVersions(BaseTest):
         f.close()
 
         # the file version has not changed since we only read the version
-        self.assertEqual(self.fs._v_manager.version(file_name), 3)
+        self.assertEqual(self.fs.version(file_name), 3)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 class BaseError(Exception):
-    """ Base error class.
-    """
+    """Base error class."""
     def __init__(self, message, *args, **kwargs):
         self.message = message
         self.details = kwargs

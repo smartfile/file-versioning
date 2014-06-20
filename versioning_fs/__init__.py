@@ -1,4 +1,5 @@
-""" Filesystem wrapper that provides versioning.
+""" Filesystem wrapper that provides versioning capabilities through
+    rdiff-backup.
 """
 import hashlib
 import os
@@ -17,39 +18,47 @@ from versioning_fs.errors import SnapshotError
 from versioning_fs.hidebackupfs import HideBackupFS
 
 
-class VersionManager(object):
+class VersionInfoMixIn(object):
+    """MixIn that provides versioning information for a filesystem.
     """
-    Base class for managing versions of files.
-    """
+
+    def has_snapshot(self, path):
+        """Returns if a path has a snapshot."""
+        if os.path.exists(self.snapshot_snap_path(path)):
+            return True
+        return False
+
+    def list_versions(self, path):
+        """Returns a list of the versions for a file."""
+        snap_dir = self.snapshot_snap_path(path)
+        command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
+        process = Popen(command, stdout=PIPE, stderr=PIPE)
+        stdout = process.communicate()[0]
+
+        versions = []
+        listing_file = StringIO(stdout)
+        for line in listing_file:
+            version_number, _ = line.split()
+            versions.append(version_number)
+
+        return sorted(versions)
+
     def version(self, path):
-        raise NotImplementedError
-
-    def set_version(self, path, version):
-        raise NotImplementedError
-
-    def remove(self, path):
-        raise NotImplementedError
-
-    def update_version(self, path):
-        version = self.version(path)
-        if version is None:
-            version = 0
-        version += 1
-        self.set_version(path, version)
+        """Returns the version of a path."""
+        return len(self.list_versions(path))
 
 
-class VersioningFS(HideBackupFS):
+class VersioningFS(VersionInfoMixIn, HideBackupFS):
     """ Versioning filesystem.
 
         This wraps other filesystems, such as OSFS.
     """
-    def __init__(self, fs, version_manager, backup_dir, tmp, testing=False):
+    def __init__(self, fs, backup_dir, tmp, testing=False):
         super(VersioningFS, self).__init__(fs, backup_dir)
 
-        self.__fs = fs
-        self._v_manager = version_manager
-        self.__backup = backup_dir
-        self.__tmp = os.path.join(tmp, 'versioningfs')
+        self.fs = fs
+        self.backup = backup_dir
+        self.__tmp = tmp
         self.__testing = testing
 
     @property
@@ -83,7 +92,7 @@ class VersioningFS(HideBackupFS):
             if version < 1:
                 raise ResourceNotFoundError("Version %s not found" %
                                             (version))
-            if version == self._v_manager.version(path):
+            if version == self.version(path):
                 instance = super(VersioningFS, self)
                 file_object = instance.open(path=path, mode=mode,
                                             buffering=buffering,
@@ -93,18 +102,9 @@ class VersioningFS(HideBackupFS):
                 return VersionedFile(fs=self, file_object=file_object,
                                      mode=mode, temp_file=False, path=path)
 
-            snap_dir = self.__snapshot_snap_path(path)
-            command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
-            process = Popen(command, stdout=PIPE, stderr=PIPE)
-            stdout = process.communicate()[0]
+            snap_dir = self.snapshot_snap_path(path)
 
-            versions = []
-            listing_file = StringIO(stdout)
-            for line in listing_file:
-                timestamp, _ = line.split()
-                versions.append(timestamp)
-
-            sorted_versions = sorted(versions)
+            sorted_versions = self.list_versions(path)
             if version > len(sorted_versions):
                 raise ResourceNotFoundError("Version %s not found" %
                                             (version))
@@ -137,34 +137,32 @@ class VersioningFS(HideBackupFS):
         :raises `fs.errors.ResourceNotFoundError`: if the path does not exist
 
         """
-        if self.__fs.isdir(path):
+        if self.fs.isdir(path):
             raise ResourceInvalidError(path)
-        if not self.__fs.exists(path):
+        if not self.fs.exists(path):
             raise ResourceNotFoundError(path)
 
-        self.__fs.remove(path)
+        self.fs.remove(path)
 
-        if self._v_manager.has_snapshot(path):
-            snap_dest_dir = self.__snapshot_snap_path(path)
+        if self.has_snapshot(path):
+            snap_dest_dir = self.snapshot_snap_path(path)
             shutil.rmtree(snap_dest_dir)
 
     @synchronize
     def snapshot(self, path):
-        """
-        Takes a snapshot of an individual file.
-        """
+        """Takes a snapshot of an individual file."""
 
         # relative to the mounted fs, what should be snapshotted and where
         # should it go
-        snap_source_dir = self.__snapshot_source(path)
-        snap_dest_dir = self.__snapshot_snap_path(path)
+        snap_source_dir = self.snapshot_source(path)
+        snap_dest_dir = self.snapshot_snap_path(path)
 
         # create the directory where the snapshot will be taken from
         os.makedirs(snap_source_dir)
-        if not self._v_manager.has_snapshot(path):
+        if not self.has_snapshot(path):
             os.makedirs(snap_dest_dir)
 
-        link_src = self.__fs.getsyspath(path)
+        link_src = self.fs.getsyspath(path)
 
         dest_hash = hashlib.sha256(path).hexdigest()
         link_dst = os.path.join(snap_source_dir, dest_hash)
@@ -194,12 +192,10 @@ class VersioningFS(HideBackupFS):
                 if not rule(stderr):
                     raise SnapshotError(stderr)
 
-        # update the version of the file
-        self._v_manager.update_version(path)
-
+        # remove  the intermediate directory
         shutil.rmtree(snap_source_dir)
 
-    def __snapshot_info_path(self, path):
+    def snapshot_info_path(self, path):
         """Returns the snapshot info file path for a given path."""
 
         # find where the snapshot info file should be
@@ -209,27 +205,28 @@ class VersioningFS(HideBackupFS):
 
         return info_path
 
-    def __snapshot_snap_path(self, path):
+    def snapshot_snap_path(self, path):
         """Returns the dir containing the snapshots for a given path."""
 
         dest_hash = hashlib.sha256(path).hexdigest()
 
-        backup_dir = self.__fs.getsyspath(self.__backup)
+        backup_dir = self.fs.getsyspath(self.backup)
         save_snap_dir = os.path.join(backup_dir, dest_hash)
         return save_snap_dir
 
-    def __snapshot_source(self, path):
+    def snapshot_source(self, path):
         """Returns the dir of the file to be snapshotted. This dir should
-        contain a hardlink to the original file in the user files directory.
+           contain a hardlink to the original file in the user files
+           directory.
         """
 
-        snap_dir = "%s.backup" % (self.__snapshot_info_path(path))
+        snap_dir = "%s.backup" % (self.snapshot_info_path(path))
         return snap_dir
 
 
 class VersionedFile(FileWrapper):
-    """ File wrapper that notifies the versioning filesystem to take a
-        snapshot if the file has been modified.
+    """File wrapper that notifies the versioning filesystem to take a
+       snapshot if the file has been modified.
     """
     def __init__(self, file_object, mode, fs, path, temp_file=False,
                  remove=None):
@@ -251,8 +248,7 @@ class VersionedFile(FileWrapper):
         return super(VersionedFile, self).writelines(*args, **kwargs)
 
     def close(self):
-        """
-        Close the file and make a snapshot if the file was modified.
+        """Close the file and make a snapshot if the file was modified.
         """
         super(VersionedFile, self).close()
 
