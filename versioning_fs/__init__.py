@@ -49,8 +49,12 @@ class VersioningFS(HideBackupFS):
         self.__fs = fs
         self._v_manager = version_manager
         self.__backup = backup_dir
-        self._tmp = os.path.join(tmp, 'versioningfs')
+        self.__tmp = os.path.join(tmp, 'versioningfs')
         self.__testing = testing
+
+    @property
+    def tmp(self):
+        return self.__tmp
 
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
              newline=None, line_buffering=False, version=None, **kwargs):
@@ -67,12 +71,13 @@ class VersioningFS(HideBackupFS):
             will be returned.
         """
         if version is None:
-            f = super(VersioningFS, self).open(path=path, mode=mode,
-                                               buffering=buffering,
-                                               errors=errors, newline=newline,
-                                               line_buffering=line_buffering,
-                                               **kwargs)
-            return VersionedFile(fs=self, file_object=f, mode=mode,
+            instance = super(VersioningFS, self)
+            file_object = instance.open(path=path, mode=mode,
+                                        buffering=buffering, errors=errors,
+                                        newline=newline,
+                                        line_buffering=line_buffering,
+                                        **kwargs)
+            return VersionedFile(fs=self, file_object=file_object, mode=mode,
                                  path=path)
         else:
             if version < 1:
@@ -107,7 +112,7 @@ class VersioningFS(HideBackupFS):
             requested_version = sorted_versions[version-1]
             if "w" not in mode:
                 temp_name = '%020x' % random.randrange(16**30)
-                dest_path = os.path.join(self._tmp, temp_name)
+                dest_path = os.path.join(self.__tmp, temp_name)
                 command = ['rdiff-backup',
                            '--restore-as-of', requested_version,
                            snap_dir, dest_path]
@@ -167,7 +172,7 @@ class VersioningFS(HideBackupFS):
         # hardlink the user file to a file inside a temp dir
         os.link(link_src, link_dst)
 
-        src_path = os.path.join(self._tmp, snap_source_dir)
+        src_path = os.path.join(self.__tmp, snap_source_dir)
         dest_path = snap_dest_dir
 
         command = ['rdiff-backup', '--parsable-output', '--no-eas',
@@ -200,7 +205,7 @@ class VersioningFS(HideBackupFS):
         # find where the snapshot info file should be
         dest_hash = hashlib.sha256(path).hexdigest()
         info_filename = "%s.info" % (dest_hash)
-        info_path = os.path.join(self._tmp, info_filename)
+        info_path = os.path.join(self.__tmp, info_filename)
 
         return info_path
 
@@ -223,6 +228,9 @@ class VersioningFS(HideBackupFS):
 
 
 class VersionedFile(FileWrapper):
+    """ File wrapper that notifies the versioning filesystem to take a
+        snapshot if the file has been modified.
+    """
     def __init__(self, file_object, mode, fs, path, temp_file=False,
                  remove=None):
         super(VersionedFile, self).__init__(file_object, mode)
@@ -257,5 +265,5 @@ class VersionedFile(FileWrapper):
                 self.__fs.snapshot(self.__path)
 
         if self.__temp_file:
-            remove = os.path.join(self.__fs._tmp, self.__remove)
+            remove = os.path.join(self.__fs.tmp, self.__remove)
             shutil.rmtree(remove)
