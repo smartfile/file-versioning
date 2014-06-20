@@ -13,7 +13,7 @@ class HideBackupFS(WrapFS):
     It is False by default.
     """
 
-    def __init__(self, wrapped_fs, hidden_dir=None, *args, **kwargs):
+    def __init__(self, wrapped_fs, hidden_dir=None):
         super(HideBackupFS, self).__init__(wrapped_fs)
         self.__hidden_dir = hidden_dir
 
@@ -38,7 +38,7 @@ class HideBackupFS(WrapFS):
                     absolute=absolute,
                     dirs_only=dirs_only,
                     files_only=files_only)
-        entries = self.wrapped_fs.listdir(path,**kwds)
+        entries = self.wrapped_fs.listdir(path, **kwds)
         if not hidden:
             entries = [e for e in entries if not self.is_hidden(e)]
         return entries
@@ -50,7 +50,7 @@ class HideBackupFS(WrapFS):
                     absolute=absolute,
                     dirs_only=dirs_only,
                     files_only=files_only)
-        for e in self.wrapped_fs.ilistdir(path,**kwds):
+        for e in self.wrapped_fs.ilistdir(path, **kwds):
             if hidden or not self.is_hidden(e):
                 yield e
 
@@ -60,26 +60,27 @@ class HideBackupFS(WrapFS):
             #  If there is a dir_wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(WrapFS,self).walk(path, wildcard, dir_wildcard,
-                                                search,ignore_errors):
+            for item in super(HideBackupFS, self).walk(path, wildcard,
+                                                       dir_wildcard,
+                                                       search, ignore_errors):
                 yield item
         #  Otherwise, the wrapped FS may provide a more efficient impl
         #  which we can use directly.
         else:
             if wildcard is not None and not callable(wildcard):
                 wildcard_re = re.compile(fnmatch.translate(wildcard))
-                wildcard = lambda fn:bool (wildcard_re.match(fn))
+                wildcard = lambda fn: bool(wildcard_re.match(fn))
             walk = self.wrapped_fs.walk(self._encode(path), search=search,
                                         ignore_errors=ignore_errors)
-            for (dirpath,filepaths) in walk:
+            for (dirpath, filepaths) in walk:
                 if self.is_hidden(dirpath):
                     continue
-                filepaths = [basename(self._decode(pathcombine(dirpath,p)))
-                                 for p in filepaths]
+                filepaths = [basename(self._decode(pathcombine(dirpath, p)))
+                             for p in filepaths]
                 dirpath = abspath(self._decode(dirpath))
                 if wildcard is not None:
                     filepaths = [p for p in filepaths if wildcard(p)]
-                yield (dirpath,filepaths)
+                yield (dirpath, filepaths)
 
     def walkfiles(self, path="/", wildcard=None, dir_wildcard=None,
                   search="breadth", ignore_errors=False):
@@ -87,16 +88,17 @@ class HideBackupFS(WrapFS):
             #  If there is a dir_wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(WrapFS,self).walkfiles(path, wildcard,
-                                                     dir_wildcard, search,
-                                                     ignore_errors):
+            for item in super(HideBackupFS, self).walkfiles(path, wildcard,
+                                                            dir_wildcard,
+                                                            search,
+                                                            ignore_errors):
                 yield item
         #  Otherwise, the wrapped FS may provide a more efficient impl
         #  which we can use directly.
         else:
             if wildcard is not None and not callable(wildcard):
                 wildcard_re = re.compile(fnmatch.translate(wildcard))
-                wildcard = lambda fn:bool (wildcard_re.match(fn))
+                wildcard = lambda fn: bool(wildcard_re.match(fn))
             walk = self.wrapped_fs.walkfiles(self._encode(path),
                                              search=search,
                                              ignore_errors=ignore_errors)
@@ -115,8 +117,9 @@ class HideBackupFS(WrapFS):
             #  If there is a wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(WrapFS,self).walkdirs(path, wildcard, search,
-                                                    ignore_errors):
+            for item in super(HideBackupFS, self).walkdirs(path, wildcard,
+                                                           search,
+                                                           ignore_errors):
                 yield item
         #  Otherwise, the wrapped FS may provide a more efficient impl
         #  which we can use directly.
@@ -130,7 +133,7 @@ class HideBackupFS(WrapFS):
 
     def isdirempty(self, path):
         path = normpath(path)
-        iter_dir = iter(self.listdir(path,hidden=True))
+        iter_dir = iter(self.listdir(path, hidden=True))
         try:
             iter_dir.next()
         except StopIteration:

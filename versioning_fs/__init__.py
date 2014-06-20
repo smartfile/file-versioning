@@ -77,11 +77,10 @@ class VersioningFS(HideBackupFS):
                 raise ResourceNotFoundError("Version %s not found" %
                                             (version))
             if version == self._v_manager.version(path):
-                f = super(VersioningFS, self).open(path=path, mode=mode,
-                                               buffering=buffering,
-                                               errors=errors, newline=newline,
-                                               line_buffering=line_buffering,
-                                               **kwargs)
+                s = super(VersioningFS, self)
+                f = s.open(path=path, mode=mode, buffering=buffering,
+                           errors=errors, newline=newline,
+                           line_buffering=line_buffering, **kwargs)
                 return VersionedFile(fs=self, file_object=f, mode=mode,
                                      temp_file=False, path=path)
 
