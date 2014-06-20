@@ -1,3 +1,5 @@
+""" Filesystem wrapper that provides versioning.
+"""
 import hashlib
 import os
 import random
@@ -28,7 +30,7 @@ class VersionManager(object):
     def remove(self, path):
         raise NotImplementedError
 
-    def _update_version(self, path):
+    def update_version(self, path):
         version = self.version(path)
         if version is None:
             version = 0
@@ -77,22 +79,24 @@ class VersioningFS(HideBackupFS):
                 raise ResourceNotFoundError("Version %s not found" %
                                             (version))
             if version == self._v_manager.version(path):
-                s = super(VersioningFS, self)
-                f = s.open(path=path, mode=mode, buffering=buffering,
-                           errors=errors, newline=newline,
-                           line_buffering=line_buffering, **kwargs)
-                return VersionedFile(fs=self, file_object=f, mode=mode,
-                                     temp_file=False, path=path)
+                instance = super(VersioningFS, self)
+                file_object = instance.open(path=path, mode=mode,
+                                            buffering=buffering,
+                                            errors=errors, newline=newline,
+                                            line_buffering=line_buffering,
+                                            **kwargs)
+                return VersionedFile(fs=self, file_object=file_object,
+                                     mode=mode, temp_file=False, path=path)
 
             snap_dir = self.__snapshot_snap_path(path)
             command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
             process = Popen(command, stdout=PIPE, stderr=PIPE)
-            stdout, stderr = process.communicate()
+            stdout = process.communicate()[0]
 
             versions = []
             listing_file = StringIO(stdout)
             for line in listing_file:
-                timestamp, kind = line.split()
+                timestamp, _ = line.split()
                 versions.append(timestamp)
 
             sorted_versions = sorted(versions)
@@ -108,7 +112,7 @@ class VersioningFS(HideBackupFS):
                            '--restore-as-of', requested_version,
                            snap_dir, dest_path]
                 process = Popen(command, stdout=PIPE, stderr=PIPE)
-                stdout, stderr = process.communicate()
+                process.communicate()
 
                 dest_hash = hashlib.sha256(path).hexdigest()
 
@@ -176,7 +180,7 @@ class VersioningFS(HideBackupFS):
             self.__testing['time'] += 1
 
         process = Popen(command, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
+        stderr = process.communicate()[1]
 
         ignore = [lambda x: x.startswith("Warning: could not determine case")]
 
@@ -186,7 +190,7 @@ class VersioningFS(HideBackupFS):
                     raise SnapshotError(stderr)
 
         # update the version of the file
-        self._v_manager._update_version(path)
+        self._v_manager.update_version(path)
 
         shutil.rmtree(snap_source_dir)
 
@@ -220,7 +224,7 @@ class VersioningFS(HideBackupFS):
 
 class VersionedFile(FileWrapper):
     def __init__(self, file_object, mode, fs, path, temp_file=False,
-                 remove=None, *args, **kwargs):
+                 remove=None):
         super(VersionedFile, self).__init__(file_object, mode)
         self.__fs = fs
         self.__path = path
