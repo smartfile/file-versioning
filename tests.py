@@ -75,8 +75,7 @@ class BaseTest(unittest.TestCase):
         shutil.rmtree(self.__scratch_dir)
 
 
-class TestVersioningFS(FSTestCases, BaseTest):
-    maxDiff = None
+class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTest):
     pass
 
 
@@ -128,14 +127,14 @@ class TestSnapshotAttributes(BaseTest):
 
     def assert_all_file_versions_equal(self, version):
         for path in self.fs.walkfiles('/'):
-            if not 'backups' in path and 'tmp' not in path:
+            if not 'abcdefg' in path and 'tmp' not in path:
                 path = relpath(path)
                 file_version = self.fs._v_manager.version(path)
                 self.assertEqual(file_version, version)
 
     def assert_all_files_have_snapshot_info(self, should_exist=True):
         for path in self.fs.walkfiles('/'):
-            if not 'backups' in path and 'tmp' not in path:
+            if not 'abcdefg' in path and 'tmp' not in path:
                 path = relpath(path)
                 snapshot_info_exists = self.fs._v_manager.has_snapshot(path)
                 self.assertEqual(snapshot_info_exists, should_exist)

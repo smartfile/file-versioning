@@ -6,10 +6,13 @@ from StringIO import StringIO
 from subprocess import Popen, PIPE
 import time
 
+from fs.base import synchronize
 from fs.filelike import FileWrapper
 from fs.errors import ResourceInvalidError, ResourceNotFoundError
-from fs.wrapfs.hidefs import HideFS
-from errors import SnapshotError
+
+
+from versioning_fs.errors import SnapshotError
+from versioning_fs.hidebackupfs import HideBackupFS
 
 
 class VersionManager(object):
@@ -33,7 +36,7 @@ class VersionManager(object):
         self.set_version(path, version)
 
 
-class VersioningFS(HideFS):
+class VersioningFS(HideBackupFS):
     """ Versioning filesystem.
 
         This wraps other filesystems, such as OSFS.
@@ -137,6 +140,7 @@ class VersioningFS(HideFS):
             snap_dest_dir = self.__snapshot_snap_path(path)
             shutil.rmtree(snap_dest_dir)
 
+    @synchronize
     def snapshot(self, path):
         """
         Takes a snapshot of an individual file.
