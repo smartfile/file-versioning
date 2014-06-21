@@ -56,13 +56,24 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
     def __init__(self, fs, backup_dir, tmp, testing=False):
         super(VersioningFS, self).__init__(fs, backup_dir)
 
-        self.fs = fs
-        self.backup = backup_dir
+        self.__fs = fs
+        self.__backup = backup_dir
         self.__tmp = tmp
         self.__testing = testing
 
     @property
+    def fs(self):
+        """Returns the filesystem that is being wrapped."""
+        return self.__fs
+
+    @property
+    def backup(self):
+        """Returns the path of the backup directory."""
+        return self.__backup
+
+    @property
     def tmp(self):
+        """Returns the path of the scratch directory."""
         return self.__tmp
 
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,

@@ -1,3 +1,5 @@
+""" Filesystem that can hide a specific directory.
+"""
 import re
 
 from fs.wrapfs import WrapFS
