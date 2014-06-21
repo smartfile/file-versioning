@@ -158,6 +158,8 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         snap_dest_dir = self.snapshot_snap_path(path)
 
         # create the directory where the snapshot will be taken from
+        if os.path.exists(snap_source_dir):
+            shutil.rmtree(snap_source_dir)
         os.makedirs(snap_source_dir)
         if not self.has_snapshot(path):
             os.makedirs(snap_dest_dir)
@@ -252,14 +254,14 @@ class VersionedFile(FileWrapper):
         """
         super(VersionedFile, self).close()
 
+        if self.__temp_file:
+            remove = os.path.join(self.__fs.tmp, self.__remove)
+            shutil.rmtree(remove)
+
         if self.__is_modified:
             try:
                 self.__fs.snapshot(self.__path)
             except SnapshotError:
-                # rdiff-backup must wait 1 second between the same file
+                # rdiff-backup must wait 1 second between the same file.
                 time.sleep(1)
                 self.__fs.snapshot(self.__path)
-
-        if self.__temp_file:
-            remove = os.path.join(self.__fs.tmp, self.__remove)
-            shutil.rmtree(remove)

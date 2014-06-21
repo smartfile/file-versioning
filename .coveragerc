@@ -2,9 +2,12 @@
 omit =
     tests.py
 include =
-    versioning/__init__.py
+    versioning_fs/__init__.py
+    versioning_fs/errors.py
+    versioning_fs/hidebackupfs.py
 
 [report]
 exclude_lines =
     if __name__ == .__main__.:
     pragma: no cover
+    def __str__

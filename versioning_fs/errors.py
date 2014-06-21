@@ -10,14 +10,6 @@ class BaseError(Exception):
 
 
 class SnapshotError(BaseError):
-    """ Raised when rdiff-backup returns an error.
-    """
+    """Raised when rdiff-backup returns an error."""
     def __init__(self, *args, **kwargs):
         super(SnapshotError, self).__init__(*args, **kwargs)
-
-
-class SnapshotInfoError(BaseError):
-    """ Raised when intermediate snapshot information is missing.
-    """
-    def __init__(self, *args, **kwargs):
-        super(SnapshotInfoError, self).__init__(*args, **kwargs)

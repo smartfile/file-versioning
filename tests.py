@@ -5,6 +5,7 @@ import string
 import tempfile
 import unittest
 
+from fs.errors import ResourceNotFoundError
 from fs.path import relpath
 from fs.tempfs import TempFS
 from fs.tests import FSTestCases
@@ -43,9 +44,8 @@ class BaseTest(unittest.TestCase):
         self.__tempfs = TempFS()
         self.__scratch_dir = tempfile.mkdtemp()
 
-        self.fs = VersioningFS(self.__tempfs,
-                               backup_dir='abcdefg', tmp=self.__scratch_dir,
-                               testing={'time': 1})
+        self.fs = VersioningFS(self.__tempfs, backup_dir='abcdefg',
+                               tmp=self.__scratch_dir, testing={'time': 1})
 
     def tearDown(self):
         self.fs.close()
@@ -57,9 +57,7 @@ class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTest):
 
 
 class TestSnapshotAttributes(BaseTest):
-    """
-    Test meta data manipulation for the files involved in snapshots.
-    """
+    """Test meta data manipulation for the files involved in snapshots."""
     def test_snapshot_file_versions(self):
         # make sure no snapshot information exists yet
         self.assert_all_files_have_snapshot_info(should_exist=False)
@@ -118,9 +116,7 @@ class TestSnapshotAttributes(BaseTest):
 
 
 class TestFileVersions(BaseTest):
-    """
-    Test file versions.
-    """
+    """Test file versions."""
     def test_single_file_updating(self):
         file_name = random_filename()
 
@@ -137,13 +133,13 @@ class TestFileVersions(BaseTest):
 
         # make some changes to the file and check for version increment
         f = self.fs.open(file_name, 'wb')
-        f.write("hello world!")
+        f.writelines("hello world!\nhello world!")
         f.close()
         self.assertEqual(self.fs.version(file_name), 2)
 
         # check the contents when we open the file
         f = self.fs.open(file_name, 'rb')
-        self.assertEqual(f.read(), "hello world!")
+        self.assertEqual(f.readlines(), ["hello world!\n", "hello world!"])
         f.close()
         # make sure the version has not been updated
         self.assertEqual(self.fs.version(file_name), 2)
@@ -154,7 +150,6 @@ class TestFileVersions(BaseTest):
         f = self.fs.open(file_name, 'wb')
         f.write("smartfile")
         f.close()
-
 
         f = self.fs.open(file_name, 'wb')
         f.write("smartfile versioning")
@@ -179,6 +174,55 @@ class TestFileVersions(BaseTest):
 
         # the file version has not changed since we only read the version
         self.assertEqual(self.fs.version(file_name), 3)
+
+    def test_bad_version(self):
+        repeat_text = 'smartfile_versioning_rocks_\n'
+        def file_contents():
+            while True:
+                yield repeat_text
+
+        # generate file 1
+        file_name = random_filename()
+        generate_file(fs=self.fs, path=file_name, size=5*KB,
+                      generator=file_contents)
+
+        with self.assertRaises(ResourceNotFoundError):
+            self.fs.open(file_name, 'rb', version=0)
+
+        with self.assertRaises(ResourceNotFoundError):
+            self.fs.open(file_name, 'rb', version=2)
+
+
+class TestRdiffBackupLimitations(unittest.TestCase):
+    """Rdiff backup cannot make two snapshots within 1 second.
+       This test checks that the filewrapper sleeps for 1 second before
+       trying to make a snapshot.
+    """
+    def setUp(self):
+        self.__tempfs = TempFS()
+        self.__scratch_dir = tempfile.mkdtemp()
+
+        self.fs = VersioningFS(self.__tempfs, backup_dir='abcdefg',
+                               tmp=self.__scratch_dir)
+
+    def test_quick_file_changes(self):
+        # test two file edits within 1 second
+        file_name = random_filename()
+
+        f = self.fs.open(file_name, 'wb')
+        f.write("smartfile")
+        f.close()
+
+        import time
+        time.sleep(0.2)
+
+        f = self.fs.open(file_name, 'wb')
+        f.write("smartfile versioning")
+        f.close()
+
+    def tearDown(self):
+        self.fs.close()
+        shutil.rmtree(self.__scratch_dir)
 
 
 if __name__ == "__main__":
