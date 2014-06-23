@@ -18,6 +18,16 @@ from versioning_fs.errors import SnapshotError
 from versioning_fs.hidebackupfs import HideBackupFS
 
 
+hasher = hashlib.sha256  # hashing function to use with backup paths
+
+
+def hash_path(path):
+    """Returns a hash of a given path."""
+    safe_path = relpath(path).encode('ascii', 'ignore')
+    dest_hash = hasher(safe_path).hexdigest()
+    return dest_hash
+
+
 class VersionInfoMixIn(object):
     """MixIn that provides versioning information for a filesystem.
     """
@@ -135,7 +145,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
                 process = Popen(command, stdout=PIPE, stderr=PIPE)
                 process.communicate()
 
-                dest_hash = self.hash_path(path)
+                dest_hash = hash_path(path)
 
                 file_path = os.path.join(dest_path, dest_hash)
                 open_file = open(name=file_path, mode=mode)
@@ -193,7 +203,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         self.__move_snapshot(src, dst)
 
     def __move_snapshot(self, src, dst):
-        # move the snapshot associated with the file
+        """Move the snapshot associated with a file."""
         if self.has_snapshot(src):
             src_snapshot = self.snapshot_snap_path(src)
             dst_snapshot = self.snapshot_snap_path(dst)
@@ -219,7 +229,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
         link_src = self.fs.getsyspath(path)
 
-        dest_hash = self.hash_path(path)
+        dest_hash = hash_path(path)
         link_dst = os.path.join(snap_source_dir, dest_hash)
 
         # hardlink the user file to a file inside a temp dir
@@ -255,7 +265,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
         path = relpath(path)
         # find where the snapshot info file should be
-        dest_hash = self.hash_path(path)
+        dest_hash = hash_path(path)
         info_filename = "%s.info" % (dest_hash)
         info_path = os.path.join(self.__tmp, info_filename)
 
@@ -265,7 +275,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         """Returns the dir containing the snapshots for a given path."""
 
         path = relpath(path)
-        dest_hash = self.hash_path(path)
+        dest_hash = hash_path(path)
 
         backup_dir = self.fs.getsyspath(self.backup)
         save_snap_dir = os.path.join(backup_dir, dest_hash)
@@ -279,12 +289,6 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
         snap_dir = "%s.backup" % (self.snapshot_info_path(path))
         return snap_dir
-
-    def hash_path(self, path):
-        """Returns a hash of a given path."""
-        safe_path = relpath(path).encode('ascii', 'ignore')
-        dest_hash = hashlib.sha256(safe_path).hexdigest()
-        return dest_hash
 
 
 class VersionedFile(FileWrapper):

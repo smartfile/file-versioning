@@ -1,5 +1,7 @@
 """ Errors related to the versioning filesystem.
 """
+
+
 class BaseError(Exception):
     """Base error class."""
     def __init__(self, message, *args, **kwargs):
