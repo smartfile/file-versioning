@@ -11,8 +11,8 @@ import time
 
 from fs.base import synchronize
 from fs.filelike import FileWrapper
-from fs.errors import ResourceInvalidError, ResourceNotFoundError
-
+from fs.errors import ResourceNotFoundError
+from fs.path import relpath
 
 from versioning_fs.errors import SnapshotError
 from versioning_fs.hidebackupfs import HideBackupFS
@@ -78,7 +78,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
     def close(self, *args, **kwargs):
         self.__fs.close()
-        super(VersioningFS, self).close()
+        super(VersioningFS, self).close(*args, **kwargs)
 
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
              newline=None, line_buffering=False, version=None, **kwargs):
@@ -94,6 +94,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
             get. If version is set to None, the most recent copy of the file
             will be returned.
         """
+        path = relpath(path)
         if version is None:
             instance = super(VersioningFS, self)
             file_object = instance.open(path=path, mode=mode,
@@ -134,7 +135,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
                 process = Popen(command, stdout=PIPE, stderr=PIPE)
                 process.communicate()
 
-                dest_hash = hashlib.sha256(path).hexdigest()
+                dest_hash = self.hash_path(path)
 
                 file_path = os.path.join(dest_path, dest_hash)
                 open_file = open(name=file_path, mode=mode)
@@ -143,25 +144,62 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
                                      path=file_path, remove=dest_path)
 
     def remove(self, path):
-        """Remove a file from the filesystem.
+        """Remove a file from the filesystem."""
+        super(VersioningFS, self).remove(path)
+        self.__delete_snapshot(path)
 
-        :param path: Path of the resource to remove
-        :type path: string
+    def removedir(self, path, recursive=False, force=False):
+        if self.fs.isdirempty(path) or force:
+            rel_path = relpath(path)
+            for filename in self.fs.walkfiles(rel_path):
+                self.__delete_snapshot(filename)
 
-        :raises `fs.errors.ResourceInvalidError`: if the path is a directory
-        :raises `fs.errors.ResourceNotFoundError`: if the path does not exist
+        super(VersioningFS, self).removedir(path, recursive, force)
 
-        """
-        if self.fs.isdir(path):
-            raise ResourceInvalidError(path)
-        if not self.fs.exists(path):
-            raise ResourceNotFoundError(path)
-
-        self.fs.remove(path)
-
+    def __delete_snapshot(self, path):
         if self.has_snapshot(path):
             snap_dest_dir = self.snapshot_snap_path(path)
             shutil.rmtree(snap_dest_dir)
+
+    def move(self, src, dst, *args, **kwargs):
+        """Move a file from one place to another."""
+
+        # move the file
+        super(VersioningFS, self).move(src, dst, *args, **kwargs)
+        self.__move_snapshot(src, dst)
+
+    def movedir(self, src, dst, *args, **kwargs):
+        """Move a directory from one place to another."""
+
+        # first, move the backups
+        rel_src = relpath(src)
+        rel_dst = relpath(dst)
+        for path in self.fs.walkfiles(rel_src):
+            if self.has_snapshot(path):
+                new_path = path.replace(rel_src, rel_dst)
+
+                old_abs_path = self.snapshot_snap_path(path)
+                new_abs_path = self.snapshot_snap_path(new_path)
+
+                os.rename(old_abs_path, new_abs_path)
+
+        super(VersioningFS, self).movedir(src, dst, *args, **kwargs)
+
+    def rename(self, src, dst):
+        """Rename a file."""
+
+        # rename the file
+        super(VersioningFS, self).rename(src, dst)
+        self.__move_snapshot(src, dst)
+
+    def __move_snapshot(self, src, dst):
+        # move the snapshot associated with the file
+        if self.has_snapshot(src):
+            src_snapshot = self.snapshot_snap_path(src)
+            dst_snapshot = self.snapshot_snap_path(dst)
+            if os.path.exists(dst_snapshot):
+                shutil.rmtree(dst_snapshot)
+            shutil.move(src_snapshot, dst_snapshot)
 
     @synchronize
     def snapshot(self, path):
@@ -181,7 +219,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
         link_src = self.fs.getsyspath(path)
 
-        dest_hash = hashlib.sha256(path).hexdigest()
+        dest_hash = self.hash_path(path)
         link_dst = os.path.join(snap_source_dir, dest_hash)
 
         # hardlink the user file to a file inside a temp dir
@@ -215,8 +253,9 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
     def snapshot_info_path(self, path):
         """Returns the snapshot info file path for a given path."""
 
+        path = relpath(path)
         # find where the snapshot info file should be
-        dest_hash = hashlib.sha256(path).hexdigest()
+        dest_hash = self.hash_path(path)
         info_filename = "%s.info" % (dest_hash)
         info_path = os.path.join(self.__tmp, info_filename)
 
@@ -225,7 +264,8 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
     def snapshot_snap_path(self, path):
         """Returns the dir containing the snapshots for a given path."""
 
-        dest_hash = hashlib.sha256(path).hexdigest()
+        path = relpath(path)
+        dest_hash = self.hash_path(path)
 
         backup_dir = self.fs.getsyspath(self.backup)
         save_snap_dir = os.path.join(backup_dir, dest_hash)
@@ -239,6 +279,12 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
         snap_dir = "%s.backup" % (self.snapshot_info_path(path))
         return snap_dir
+
+    def hash_path(self, path):
+        """Returns a hash of a given path."""
+        safe_path = relpath(path).encode('ascii', 'ignore')
+        dest_hash = hashlib.sha256(safe_path).hexdigest()
+        return dest_hash
 
 
 class VersionedFile(FileWrapper):

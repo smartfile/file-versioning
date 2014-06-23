@@ -213,9 +213,6 @@ class TestRdiffBackupLimitations(unittest.TestCase):
         f.write("smartfile")
         f.close()
 
-        import time
-        time.sleep(0.2)
-
         f = self.fs.open(file_name, 'wb')
         f.write("smartfile versioning")
         f.close()
@@ -223,6 +220,88 @@ class TestRdiffBackupLimitations(unittest.TestCase):
     def tearDown(self):
         self.fs.close()
         shutil.rmtree(self.__scratch_dir)
+
+
+class TestFileOperations(BaseTest):
+    """Test fs.move, fs.movedir, fs.rename, fs.remove, and fs.removedir"""
+    def test_move_single_file(self):
+        """Move a single file, which should also move its backups."""
+        # have 2 versions of a file we create
+        file_name = random_filename()
+
+        f = self.fs.open(file_name, 'wb')
+        f.write("smartfile")
+        f.close()
+
+        f = self.fs.open(file_name, 'wb')
+        f.write("smartfile versioning")
+        f.close()
+
+        # move the file somewhere else
+        new_filename = random_filename()
+        self.fs.move(file_name, new_filename)
+
+        # check if versioning is still available
+        f = self.fs.open(new_filename, 'rb', version=2)
+        self.assertEqual(f.read(), "smartfile versioning")
+        f.close()
+
+    def test_move_single_directory(self):
+        """Move a directory, which should also move the backups."""
+        file1_name = random_filename()
+        dir1_name = random_filename()
+        dir2_name = random_filename()
+        file1_full_path = os.path.join(dir1_name, file1_name)
+        file1_new_full_path = os.path.join(dir2_name, file1_name)
+
+        # create a directory for the file we are going to create
+        self.fs.makedir(dir1_name)
+
+        f = self.fs.open(file1_full_path, 'wb')
+        f.write("smartfile")
+        f.close()
+
+        f = self.fs.open(file1_full_path, 'wb')
+        f.write("smartfile versioning")
+        f.close()
+
+        # move the directory
+        self.fs.movedir(dir1_name, dir2_name)
+
+         # check if versioning is still available
+        f = self.fs.open(file1_new_full_path, 'rb', version=2)
+        self.assertEqual(f.read(), "smartfile versioning")
+        f.close()
+
+    def test_remove_single_file(self):
+        """Remove a single file along with its backups."""
+        file_name = random_filename()
+
+        f = self.fs.open(file_name, 'wb')
+        f.write("smartfile")
+        f.close()
+
+        self.fs.remove(file_name)
+
+        self.assertFalse(self.fs.has_snapshot(file_name))
+
+    def test_remove_single_dir(self):
+        """Remove a single dir along with its backups."""
+        dir_name = random_filename()
+        self.fs.makedir(dir_name)
+
+        files = [random_filename() for x in range(4)]
+        paths = [os.path.join(dir_name, path) for path in files]
+
+        for path in paths:
+            for _ in range(2):
+                with self.fs.open(path, 'wb') as f:
+                    f.write('hello world')
+
+        self.fs.removedir(dir_name, force=True)
+
+        for path in paths:
+            self.assertTrue(not self.fs.has_snapshot(path))
 
 
 if __name__ == "__main__":
