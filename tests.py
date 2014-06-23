@@ -223,7 +223,7 @@ class TestRdiffBackupLimitations(unittest.TestCase):
 
 
 class TestFileOperations(BaseTest):
-    """Test fs.move, fs.movedir, fs.rename, fs.remove, and fs.removedir"""
+    """Test fs.move, fs.movedir, fs.remove, and fs.removedir"""
     def test_move_single_file(self):
         """Move a single file, which should also move its backups."""
         # have 2 versions of a file we create
