@@ -76,6 +76,10 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         """Returns the path of the scratch directory."""
         return self.__tmp
 
+    def close(self, *args, **kwargs):
+        self.__fs.close()
+        super(VersioningFS, self).close()
+
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
              newline=None, line_buffering=False, version=None, **kwargs):
         """
