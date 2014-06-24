@@ -4,7 +4,6 @@ import string
 import unittest
 
 from fs.errors import ResourceNotFoundError
-from fs.osfs import OSFS
 from fs.path import relpath
 from fs.tempfs import TempFS
 from fs.tests import FSTestCases
