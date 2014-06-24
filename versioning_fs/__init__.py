@@ -182,6 +182,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         super(VersioningFS, self).removedir(path, recursive, force)
 
     def __delete_snapshot(self, path):
+        """Deletes a snapshot for a given path."""
         if self.has_snapshot(path):
             snap_dest_dir = self.snapshot_snap_path(path)
             shutil.rmtree(snap_dest_dir)
