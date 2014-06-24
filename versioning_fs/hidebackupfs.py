@@ -2,8 +2,9 @@
 """
 import re
 
+from fs.errors import FSError
+from fs.path import abspath, basename, normpath, pathcombine, pathjoin
 from fs.wrapfs import WrapFS
-from fs.path import abspath, basename, normpath, pathcombine
 import fnmatch
 
 
@@ -132,6 +133,50 @@ class HideBackupFS(WrapFS):
                 if self.is_hidden(dirpath):
                     continue
                 yield abspath(self._decode(dirpath))
+
+    def listdirinfo(self, path="./", wildcard=None, full=False,
+                    absolute=False, dirs_only=False, files_only=False):
+        """Retrieves a list of paths and path info under a given path.
+
+        This method behaves like listdir() but instead of just returning
+        the name of each item in the directory, it returns a tuple of the
+        name and the info dict as returned by getinfo.
+
+        This method may be more efficient than calling
+        :py:meth:`~fs.base.FS.getinfo` on each individual item returned
+        by :py:meth:`~fs.base.FS.listdir`, particularly for network based
+        filesystems.
+
+        :param path: root of the path to list
+        :param wildcard: filter paths that match this wildcard
+        :param dirs_only: only retrieve directories
+        :type dirs_only: bool
+        :param files_only: only retrieve files
+        :type files_only: bool
+
+        :raises `fs.errors.ResourceNotFoundError`: If the path is not found
+        :raises `fs.errors.ResourceInvalidError`: If the path exists, but
+        is not a directory
+
+        """
+        path = normpath(path)
+
+        def getinfo(p):
+            try:
+                if full or absolute:
+                    return self.getinfo(p)
+                else:
+                    return self.getinfo(pathjoin(path, p))
+            except FSError:
+                return {}
+
+        return [(p, getinfo(p))
+                for p in self.listdir(path,
+                                      wildcard=wildcard,
+                                      full=full,
+                                      absolute=absolute,
+                                      dirs_only=dirs_only,
+                                      files_only=files_only)]
 
     def isdirempty(self, path):
         path = normpath(path)

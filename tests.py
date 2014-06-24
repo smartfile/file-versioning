@@ -1,11 +1,10 @@
 import os
 import random
-import shutil
 import string
-import tempfile
 import unittest
 
 from fs.errors import ResourceNotFoundError
+from fs.osfs import OSFS
 from fs.path import relpath
 from fs.tempfs import TempFS
 from fs.tests import FSTestCases
@@ -41,15 +40,13 @@ def random_filename(size=20):
 
 class BaseTest(unittest.TestCase):
     def setUp(self):
-        self.__tempfs = TempFS()
-        self.__scratch_dir = tempfile.mkdtemp()
-
-        self.fs = VersioningFS(self.__tempfs, backup_dir='abcdefg',
-                               tmp=self.__scratch_dir, testing={'time': 1})
+        rootfs = TempFS()
+        backup = TempFS(temp_dir=rootfs.getsyspath('/'))
+        self.fs = VersioningFS(rootfs, backup=backup, tmp=TempFS(),
+                               testing={'time': 1})
 
     def tearDown(self):
         self.fs.close()
-        shutil.rmtree(self.__scratch_dir)
 
 
 class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTest):
@@ -199,11 +196,7 @@ class TestRdiffBackupLimitations(unittest.TestCase):
        trying to make a snapshot.
     """
     def setUp(self):
-        self.__tempfs = TempFS()
-        self.__scratch_dir = tempfile.mkdtemp()
-
-        self.fs = VersioningFS(self.__tempfs, backup_dir='abcdefg',
-                               tmp=self.__scratch_dir)
+        self.fs = VersioningFS(TempFS(), TempFS(), TempFS())
 
     def test_quick_file_changes(self):
         # test two file edits within 1 second
@@ -219,7 +212,6 @@ class TestRdiffBackupLimitations(unittest.TestCase):
 
     def tearDown(self):
         self.fs.close()
-        shutil.rmtree(self.__scratch_dir)
 
 
 class TestFileOperations(BaseTest):

@@ -63,31 +63,46 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
         This wraps other filesystems, such as OSFS.
     """
-    def __init__(self, fs, backup_dir, tmp, testing=False):
-        super(VersioningFS, self).__init__(fs, backup_dir)
+    def __init__(self, fs, backup, tmp, testing=False):
+        """
+        Parameters
+          fs (FS): A filesystem object to be wrapped.
+          backup (FS): The filesystem object that mounts the backup directory.
+          tmp (FS): The filesystem object used for scratch space when
+                restoring older versions of files.
+          testing (boolean) (default=False): When testing, it's handy to set
+                this to true, since rdiff-backup will prevent the tests
+                from taking quick snapshots of a single file.
+        """
+        hide_abs_path = os.path.split(backup.getsyspath('/'))[0]
+        # make sure the backups directory is hidden from the user
+        hide = os.path.basename(hide_abs_path)
+        super(VersioningFS, self).__init__(fs, hide)
 
         self.__fs = fs
-        self.__backup = backup_dir
+        self.__backup = backup
         self.__tmp = tmp
         self.__testing = testing
 
     @property
     def fs(self):
-        """Returns the filesystem that is being wrapped."""
+        """Returns the FS object that is being wrapped."""
         return self.__fs
 
     @property
     def backup(self):
-        """Returns the path of the backup directory."""
+        """Returns the FS object of the backup directory."""
         return self.__backup
 
     @property
     def tmp(self):
-        """Returns the path of the scratch directory."""
+        """Returns the FS object for the scratch directory."""
         return self.__tmp
 
     def close(self, *args, **kwargs):
         self.__fs.close()
+        self.__backup.close()
+        self.__tmp.close()
         super(VersioningFS, self).close(*args, **kwargs)
 
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
@@ -138,7 +153,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
             requested_version = sorted_versions[version-1]
             if "w" not in mode:
                 temp_name = '%020x' % random.randrange(16**30)
-                dest_path = os.path.join(self.__tmp, temp_name)
+                dest_path = os.path.join(self.tmp.getsyspath('/'), temp_name)
                 command = ['rdiff-backup',
                            '--restore-as-of', requested_version,
                            snap_dir, dest_path]
@@ -147,8 +162,8 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
 
                 dest_hash = hash_path(path)
 
-                file_path = os.path.join(dest_path, dest_hash)
-                open_file = open(name=file_path, mode=mode)
+                file_path = os.path.join(temp_name, dest_hash)
+                open_file = self.tmp.open(file_path, mode=mode)
                 return VersionedFile(fs=self, file_object=open_file,
                                      mode=mode, temp_file=True,
                                      path=file_path, remove=dest_path)
@@ -235,7 +250,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         # hardlink the user file to a file inside a temp dir
         os.link(link_src, link_dst)
 
-        src_path = os.path.join(self.__tmp, snap_source_dir)
+        src_path = os.path.join(self.__tmp.getsyspath('/'), snap_source_dir)
         dest_path = snap_dest_dir
 
         command = ['rdiff-backup', '--parsable-output', '--no-eas',
@@ -267,7 +282,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         # find where the snapshot info file should be
         dest_hash = hash_path(path)
         info_filename = "%s.info" % (dest_hash)
-        info_path = os.path.join(self.__tmp, info_filename)
+        info_path = os.path.join(self.__tmp.getsyspath('/'), info_filename)
 
         return info_path
 
@@ -277,7 +292,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         path = relpath(path)
         dest_hash = hash_path(path)
 
-        backup_dir = self.fs.getsyspath(self.backup)
+        backup_dir = self.backup.getsyspath('/')
         save_snap_dir = os.path.join(backup_dir, dest_hash)
         return save_snap_dir
 
