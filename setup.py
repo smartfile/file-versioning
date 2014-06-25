@@ -19,7 +19,7 @@ setup (
     author_email = 'travcunn@umail.iu.edu',
     maintainer = 'Travis Cunningham',
     maintainer_email = 'travcunn@umail.iu.edu',
-    url = 'http://github.com/travcunn/' + name + '/',
+    url = 'http://github.com/travcunn/file-versioning',
     license = 'MIT',
     packages = ['versioning_fs'],
     package_dir = {'versioning_fs' : 'versioning_fs'},
