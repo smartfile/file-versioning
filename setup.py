@@ -1,10 +1,13 @@
 #!/usr/bin/env python
-import os
 from setuptools import setup
 
 name = 'versioning_fs'
-long_description = open(os.path.join(os.path.dirname(__file__), 'README.md'),
-                        'r').read()
+
+try:
+   import pypandoc
+   long_description = pypandoc.convert('README.md', 'rst')
+except (IOError, ImportError):
+   long_description = ''
 
 setup (
     name = name,
