@@ -1,12 +1,13 @@
 language: python
 python:
   - "2.7"
-install:
-  - apt-get install rdiff-backup
+before_install:
+  - sudo apt-get install rdiff-backup
   - pip install pep8
   - pip install pyflakes
   - pip install coverage
   - pip install coveralls
+install:
   - python setup.py install
 before_script:
   - make verify
