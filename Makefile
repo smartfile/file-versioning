@@ -3,7 +3,7 @@ clean:
 	rm __pycache__ -rf
 
 test:
-	python tests.py
+	coverage run tests.py
 
 verify:
 	pyflakes versioning_fs
