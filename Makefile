@@ -8,3 +8,7 @@ test:
 verify:
 	pyflakes versioning_fs
 	pep8 versioning_fs
+
+publish:
+	python setup.py register
+	python setup.py sdist upload

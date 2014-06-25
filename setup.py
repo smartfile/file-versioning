@@ -1,13 +1,23 @@
 #!/usr/bin/env python
+import os
 from setuptools import setup
 
+name = 'versioning_fs'
+long_description = open(os.path.join(os.path.dirname(__file__), 'README.md'),
+                        'r').read()
+
 setup (
-    name = 'versioning_fs',
+    name = name,
     version = '0.0.1',
-    description = """A file system abstraction that stores previous revisions
-                  of files, with the ability to restore any version.""",
+    description = """Incremental versioning file system for PyFileSystem
+                     using rdiff-backup.""",
+    long_description = long_description,
     author = 'Travis Cunningham',
     author_email = 'travcunn@umail.iu.edu',
+    maintainer = 'Travis Cunningham',
+    maintainer_email = 'travcunn@umail.iu.edu',
+    url = 'http://github.com/travcunn/' + name + '/',
+    license = 'MIT',
     packages = ['versioning_fs'],
     package_dir = {'versioning_fs' : 'versioning_fs'},
     install_requires = ['fs'],
