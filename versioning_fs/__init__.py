@@ -316,7 +316,7 @@ class VersionedFile(FileWrapper):
         super(VersionedFile, self).__init__(file_object, mode)
         self.__fs = fs
         self.__path = path
-        self.__temp_file = temp_file
+        self._is_temp_file = temp_file
         self.__is_modified = False
 
         self.__file_object = file_object
@@ -335,7 +335,7 @@ class VersionedFile(FileWrapper):
         """
         super(VersionedFile, self).close()
 
-        if self.__temp_file:
+        if self._is_temp_file:
             remove = os.path.join(self.__fs.tmp, self.__remove)
             shutil.rmtree(remove)
 
