@@ -57,6 +57,34 @@ class VersionInfoMixIn(object):
         """Returns the version of a path."""
         return len(self.list_versions(path))
 
+    def list_info(self, path):
+        """Returns a dictionary containing timestamps for each version of a
+           path.
+        """
+        info = dict()
+
+        info[self.version(path)] = self.fs.getinfo(path)['modified_time']
+
+        # no versioning exists
+        if self.version(path) <= 1:
+            return info
+
+        # absolute path to the snapshot directory
+        snapshot_dir_abs = self.snapshot_snap_path(path)
+        # path relative to the tmp fs
+        snap_dir = os.path.basename(snapshot_dir_abs)
+
+        increments_dir = os.path.join(snap_dir, 'rdiff-backup-data',
+                                      'increments')
+
+        increments = self.backup.walkfiles(increments_dir)
+
+        for version, version_path in enumerate(increments):
+            modified = self.backup.getinfo(version_path)['modified_time']
+            info[version + 1] = modified
+
+        return info
+
 
 class VersioningFS(VersionInfoMixIn, HideBackupFS):
     """ Versioning filesystem.
@@ -257,7 +285,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         command = ['rdiff-backup', '--parsable-output', '--no-eas',
                    '--no-file-statistics', '--no-acls', src_path, dest_path]
 
-        # speedup the tests
+        # speed up the tests
         if self.__testing:
             command.insert(5, '--current-time')
             command.insert(6, str(self.__testing['time']))

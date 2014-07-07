@@ -96,6 +96,28 @@ class TestSnapshotAttributes(BaseTest):
         # make sure all files in the user folder have snapshot information
         self.assert_all_files_have_snapshot_info(should_exist=True)
 
+    def test_file_version_timestamps(self):
+        file_name = random_filename()
+        with self.fs.open(file_name, 'wb') as f:
+            f.write('hello world\n')
+
+        self.assertEqual(len(self.fs.list_info(file_name).keys()), 1)
+
+        with self.fs.open(file_name, 'wb') as f:
+            f.write('hello world123\n')
+
+        with self.fs.open(file_name, 'wb') as f:
+            f.write('hello world123456\n')
+
+        version_info = self.fs.list_info(file_name)
+
+        dates = version_info.values()
+
+        for z in range(len(dates) - 1):
+            current_date = dates[z]
+            next_date = dates[z+1]
+            self.assertTrue(current_date <= next_date)
+
     def assert_all_file_versions_equal(self, version):
         for path in self.fs.walkfiles('/'):
             if not 'abcdefg' in path and 'tmp' not in path:
@@ -189,14 +211,11 @@ class TestFileVersions(BaseTest):
             self.fs.open(file_name, 'rb', version=2)
 
 
-class TestRdiffBackupLimitations(unittest.TestCase):
+class TestRdiffBackupLimitations(BaseTest):
     """Rdiff backup cannot make two snapshots within 1 second.
        This test checks that the filewrapper sleeps for 1 second before
        trying to make a snapshot.
     """
-    def setUp(self):
-        self.fs = VersioningFS(TempFS(), TempFS(), TempFS())
-
     def test_quick_file_changes(self):
         # test two file edits within 1 second
         file_name = random_filename()
