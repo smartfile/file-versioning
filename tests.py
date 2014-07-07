@@ -97,6 +97,7 @@ class TestSnapshotAttributes(BaseTest):
         self.assert_all_files_have_snapshot_info(should_exist=True)
 
     def test_file_version_timestamps(self):
+        """Test version information for a specific path."""
         file_name = random_filename()
         with self.fs.open(file_name, 'wb') as f:
             f.write('hello world\n')
