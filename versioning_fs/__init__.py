@@ -63,7 +63,9 @@ class VersionInfoMixIn(object):
         """
         info = dict()
 
-        info[self.version(path)] = self.fs.getinfo(path)['modified_time']
+        modified = self.fs.getinfo(path)['modified_time']
+        modified_time = modified.replace(microsecond=0).isoformat()
+        info[self.version(path)] = modified_time
 
         # no versioning exists
         if self.version(path) <= 1:
@@ -81,7 +83,8 @@ class VersionInfoMixIn(object):
 
         for version, version_path in enumerate(increments):
             modified = self.backup.getinfo(version_path)['modified_time']
-            info[version + 1] = modified
+            modified_time = modified.replace(microsecond=0).isoformat()
+            info[version + 1] = modified_time
 
         return info
 
