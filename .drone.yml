@@ -1,6 +1,6 @@
 image: python:2.7
 script:
-  - apt-get install python-pip -y
+  - apt-get install python-setuptools python-pip -y
   - apt-get install rdiff-backup -y
   - pip install pep8
   - pip install pyflakes
