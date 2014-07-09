@@ -48,6 +48,19 @@ class BaseTest(unittest.TestCase):
         self.fs.close()
 
 
+class BaseTimeSensitiveTest(unittest.TestCase):
+    """The base class for tests that should not bypass the time settings for
+       rdiff-backup.
+    """
+    def setUp(self):
+        rootfs = TempFS()
+        backup = TempFS(temp_dir=rootfs.getsyspath('/'))
+        self.fs = VersioningFS(rootfs, backup=backup, tmp=TempFS())
+
+    def tearDown(self):
+        self.fs.close()
+
+
 class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTest):
     pass
 
@@ -205,14 +218,22 @@ class TestFileVersions(BaseTest):
         generate_file(fs=self.fs, path=file_name, size=5*KB,
                       generator=file_contents)
 
+        # version 0 should never exist
         with self.assertRaises(ResourceNotFoundError):
             self.fs.open(file_name, 'rb', version=0)
 
+        # version 2 has not been created yet
         with self.assertRaises(ResourceNotFoundError):
             self.fs.open(file_name, 'rb', version=2)
 
 
-class TestRdiffBackupLimitations(BaseTest):
+class TestBackupDeletions(BaseTimeSensitiveTest):
+    """Test the deletions of older backups."""
+    def test_delete_older_backups(self):
+        pass
+
+
+class TestRdiffBackupLimitations(BaseTimeSensitiveTest):
     """Rdiff backup cannot make two snapshots within 1 second.
        This test checks that the filewrapper sleeps for 1 second before
        trying to make a snapshot.
@@ -220,17 +241,13 @@ class TestRdiffBackupLimitations(BaseTest):
     def test_quick_file_changes(self):
         # test two file edits within 1 second
         file_name = random_filename()
+        iterations = 3
 
-        f = self.fs.open(file_name, 'wb')
-        f.write("smartfile")
-        f.close()
+        for _ in range(iterations):
+            with self.fs.open(file_name, 'wb') as f:
+                f.write(random_filename())
 
-        f = self.fs.open(file_name, 'wb')
-        f.write("smartfile versioning")
-        f.close()
-
-    def tearDown(self):
-        self.fs.close()
+        self.assertEqual(self.fs.version(file_name), iterations)
 
 
 class TestFileOperations(BaseTest):
