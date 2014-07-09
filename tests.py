@@ -10,6 +10,7 @@ from fs.tests import FSTestCases
 from fs.tests import ThreadingTestCases
 
 from versioning_fs import VersioningFS
+from versioning_fs.errors import VersionError
 
 
 KB = 1024
@@ -61,7 +62,8 @@ class BaseTimeSensitiveTest(unittest.TestCase):
         self.fs.close()
 
 
-class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTest):
+class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTimeSensitiveTest):
+    """Test basic and advanced fs functionality."""
     pass
 
 
@@ -227,10 +229,39 @@ class TestFileVersions(BaseTest):
             self.fs.open(file_name, 'rb', version=2)
 
 
-class TestBackupDeletions(BaseTimeSensitiveTest):
-    """Test the deletions of older backups."""
-    def test_delete_older_backups(self):
-        pass
+class TestVersionDeletion(BaseTimeSensitiveTest):
+    """Test the deletion of older versions."""
+    def test_delete_older_versions(self):
+        file_name = random_filename()
+        iterations = 4
+
+        # generate some files
+        for _ in range(iterations):
+            with self.fs.open(file_name, 'wb') as f:
+                f.write(random_filename())
+
+        # try a bad version: remove versions before 1
+        with self.assertRaises(VersionError):
+            self.fs.remove_versions_before(file_name, version=1)
+
+        with self.assertRaises(VersionError):
+            invalid_version = iterations + 1
+            self.fs.remove_versions_before(file_name, version=invalid_version)
+
+        # look at the time of version 2 and delete anything older than it
+        self.fs.remove_versions_before(path=file_name, version=2)
+
+        # we deleted versions older than 2 which deleted version 1
+        total_versions = self.fs.version(file_name)
+        self.assertEqual(total_versions, 3)
+
+        # try deleting with a timestamp string rather than version number
+        delete_date = self.fs.list_info(file_name)[2]
+        self.fs.remove_versions_before(path=file_name, version=delete_date)
+
+        # we deleted versions before the date of the second version
+        total_versions = self.fs.version(file_name)
+        self.assertEqual(total_versions, 2)
 
 
 class TestRdiffBackupLimitations(BaseTimeSensitiveTest):

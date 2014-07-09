@@ -17,3 +17,9 @@ class SnapshotError(BaseError):
     """Raised when rdiff-backup returns an error."""
     def __init__(self, *args, **kwargs):
         super(SnapshotError, self).__init__(*args, **kwargs)
+
+
+class VersionError(BaseError):
+    """Raised when an invalid file version is requested."""
+    def __init__(self, *args, **kwargs):
+        super(VersionError, self).__init__(*args, **kwargs)

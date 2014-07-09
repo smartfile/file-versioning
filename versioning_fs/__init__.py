@@ -14,7 +14,7 @@ from fs.filelike import FileWrapper
 from fs.errors import ResourceNotFoundError
 from fs.path import relpath
 
-from versioning_fs.errors import SnapshotError
+from versioning_fs.errors import SnapshotError, VersionError
 from versioning_fs.hidebackupfs import HideBackupFS
 
 
@@ -26,6 +26,15 @@ def hash_path(path):
     safe_path = relpath(path).encode('ascii', 'ignore')
     dest_hash = hasher(safe_path).hexdigest()
     return dest_hash
+
+
+def is_valid_time_format(timestamp):
+    """Verify a timestamp format for compatibility with rdiff-backup."""
+    try:
+        time.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
+        return True
+    except ValueError:
+        return False
 
 
 class VersionInfoMixIn(object):
@@ -61,31 +70,13 @@ class VersionInfoMixIn(object):
         """Returns a dictionary containing timestamps for each version of a
            path.
         """
-        info = dict()
+        versions = self.list_versions(path)
 
-        modified = self.fs.getinfo(path)['modified_time']
-        modified_time = modified.replace(microsecond=0).isoformat()
-        info[self.version(path)] = modified_time
+        def formatted_time(epoch):
+            """Convert Unix time into a formatted string that js can read."""
+            return time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(epoch))
 
-        # no versioning exists
-        if self.version(path) <= 1:
-            return info
-
-        # absolute path to the snapshot directory
-        snapshot_dir_abs = self.snapshot_snap_path(path)
-        # path relative to the tmp fs
-        snap_dir = os.path.basename(snapshot_dir_abs)
-
-        increments_dir = os.path.join(snap_dir, 'rdiff-backup-data',
-                                      'increments')
-
-        increments = self.backup.walkfiles(increments_dir)
-
-        for version, version_path in enumerate(increments):
-            modified = self.backup.getinfo(version_path)['modified_time']
-            modified_time = modified.replace(microsecond=0).isoformat()
-            info[version + 1] = modified_time
-
+        info = {k+1: formatted_time(int(v)) for k, v in enumerate(versions)}
         return info
 
 
@@ -136,6 +127,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         self.__tmp.close()
         super(VersioningFS, self).close(*args, **kwargs)
 
+    @synchronize
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
              newline=None, line_buffering=False, version=None, **kwargs):
         """
@@ -307,6 +299,38 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         # remove  the intermediate directory
         shutil.rmtree(snap_source_dir)
 
+    def remove_versions_before(self, path, version):
+        """Removes snapshots before a specified version.
+
+           The specified version can be either a version (int) or a time (str)
+           in the following format: '%Y-%m-%dT%H:%M:%S'
+        """
+
+        # if the version number is a string, try converting it into an int
+        if isinstance(version, str):
+            if str(version).isdigit():
+                version = int(version)
+
+        if isinstance(version, int):
+            current_version = self.version(path)
+            # Versions can't be deleted before version 1 or after the current
+            if version > current_version or version <= 1:
+                raise VersionError("Invalid version.")
+
+            date_to_delete = self.list_info(path)[version]
+        else:
+            # check for an invalid timestamp string
+            if not is_valid_time_format(version):
+                raise VersionError("Invalid time format.")
+
+            date_to_delete = version
+
+        snap_dir = self.snapshot_snap_path(path)
+        command = ['rdiff-backup', '--parsable-output',
+                   '--remove-older-than', str(date_to_delete), snap_dir]
+        process = Popen(command, stdout=PIPE, stderr=PIPE)
+        process.communicate()
+
     def snapshot_info_path(self, path):
         """Returns the snapshot info file path for a given path."""
 
@@ -371,9 +395,13 @@ class VersionedFile(FileWrapper):
             shutil.rmtree(remove)
 
         if self.__is_modified:
-            try:
-                self.__fs.snapshot(self.__path)
-            except SnapshotError:
-                # rdiff-backup must wait 1 second between the same file.
-                time.sleep(1)
-                self.__fs.snapshot(self.__path)
+            max_tries = 3  # limit the amount of tries to make a snapshot
+
+            for _ in range(max_tries):
+                try:
+                    self.__fs.snapshot(self.__path)
+                except SnapshotError:
+                    # rdiff-backup must wait 1 second between the same file.
+                    time.sleep(1)
+                else:
+                    break
