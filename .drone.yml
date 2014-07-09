@@ -1,8 +1,10 @@
-image: smartfile/python
+image: python:2.7
 script:
   - apt-get install rdiff-backup -y
   - pip install pep8
   - pip install pyflakes
   - pip install coverage
+
+  - python setup.py install
   - make verify
   - make test
