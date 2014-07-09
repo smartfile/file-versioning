@@ -233,7 +233,7 @@ class TestVersionDeletion(BaseTimeSensitiveTest):
     """Test the deletion of older versions."""
     def test_delete_older_versions(self):
         file_name = random_filename()
-        iterations = 4
+        iterations = 5
 
         # generate some files
         for _ in range(iterations):
@@ -244,22 +244,32 @@ class TestVersionDeletion(BaseTimeSensitiveTest):
         with self.assertRaises(VersionError):
             self.fs.remove_versions_before(file_name, version=1)
 
+        # try a bad version: remove versions after the current+1
         with self.assertRaises(VersionError):
             invalid_version = iterations + 1
             self.fs.remove_versions_before(file_name, version=invalid_version)
 
+        # try a bad version: use an invalid time format
+        with self.assertRaises(VersionError):
+            invalid_version = "3/4/1998T13:00"
+            self.fs.remove_versions_before(file_name, version=invalid_version)
+
         # look at the time of version 2 and delete anything older than it
         self.fs.remove_versions_before(path=file_name, version=2)
-
         # we deleted versions older than 2 which deleted version 1
         total_versions = self.fs.version(file_name)
-        self.assertEqual(total_versions, 3)
+        self.assertEqual(total_versions, 4)
 
         # try deleting with a timestamp string rather than version number
         delete_date = self.fs.list_info(file_name)[2]
         self.fs.remove_versions_before(path=file_name, version=delete_date)
-
         # we deleted versions before the date of the second version
+        total_versions = self.fs.version(file_name)
+        self.assertEqual(total_versions, 3)
+
+        # try deleting a version with a string that is also a digit
+        self.fs.remove_versions_before(path=file_name, version='2')
+        # we deleted versions older than 2 which deleted version 1
         total_versions = self.fs.version(file_name)
         self.assertEqual(total_versions, 2)
 
