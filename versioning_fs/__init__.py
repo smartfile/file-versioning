@@ -11,7 +11,7 @@ import time
 
 from fs.base import synchronize
 from fs.filelike import FileWrapper
-from fs.errors import ResourceNotFoundError
+from fs.errors import OperationFailedError, ResourceNotFoundError
 from fs.path import relpath
 
 from versioning_fs.errors import SnapshotError, VersionError
@@ -305,6 +305,11 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
            The specified version can be either a version (int) or a time (str)
            in the following format: '%Y-%m-%dT%H:%M:%S'
         """
+        if not self.exists(path):
+            raise ResourceNotFoundError(path)
+
+        if not self.isfile(path):
+            raise OperationFailedError(path)
 
         # if the version number is a string, try converting it into an int
         if isinstance(version, str):
@@ -329,7 +334,10 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         command = ['rdiff-backup', '--parsable-output',
                    '--remove-older-than', str(date_to_delete), snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
-        process.communicate()
+        stderr = process.communicate()[1]
+
+        if len(stderr) > 0:
+            raise OperationFailedError(path)
 
     def snapshot_info_path(self, path):
         """Returns the snapshot info file path for a given path."""
