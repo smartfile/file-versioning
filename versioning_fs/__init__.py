@@ -312,9 +312,12 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
             raise OperationFailedError(path)
 
         # if the version number is a string, try converting it into an int
-        if isinstance(version, str):
-            if str(version).isdigit():
-                version = int(version)
+        if isinstance(version, str) or isinstance(version, unicode):
+            try:
+                if str(version).isdigit():
+                    version = int(version)
+            except ValueError:
+                raise VersionError("Invalid version.")
 
         if isinstance(version, int):
             current_version = self.version(path)

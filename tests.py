@@ -268,7 +268,7 @@ class TestVersionDeletion(BaseTimeSensitiveTest):
         self.assertEqual(total_versions, 3)
 
         # try deleting a version with a string that is also a digit
-        self.fs.remove_versions_before(path=file_name, version='2')
+        self.fs.remove_versions_before(path=file_name, version=u'2')
         # we deleted versions older than 2 which deleted version 1
         total_versions = self.fs.version(file_name)
         self.assertEqual(total_versions, 2)
