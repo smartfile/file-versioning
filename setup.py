@@ -11,7 +11,7 @@ except (IOError, ImportError):
 
 setup (
     name = name,
-    version = '0.0.7',
+    version = '0.0.8',
     description = """Incremental versioning file system for PyFileSystem
                      using rdiff-backup.""",
     long_description = long_description,
