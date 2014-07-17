@@ -67,9 +67,8 @@ class HideFS(WrapFS):
             #  If there is a dir_wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(HideFS, self).walk(path, wildcard,
-                                                       dir_wildcard,
-                                                       search, ignore_errors):
+            for item in super(HideFS, self).walk(path, wildcard, dir_wildcard,
+                                                 search, ignore_errors):
                 yield item
         #  Otherwise, the wrapped FS may provide a more efficient impl
         #  which we can use directly.
@@ -96,9 +95,8 @@ class HideFS(WrapFS):
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
             for item in super(HideFS, self).walkfiles(path, wildcard,
-                                                            dir_wildcard,
-                                                            search,
-                                                            ignore_errors):
+                                                      dir_wildcard, search,
+                                                      ignore_errors):
                 yield item
         #  Otherwise, the wrapped FS may provide a more efficient impl
         #  which we can use directly.
@@ -124,9 +122,8 @@ class HideFS(WrapFS):
             #  If there is a wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(HideFS, self).walkdirs(path, wildcard,
-                                                           search,
-                                                           ignore_errors):
+            for item in super(HideFS, self).walkdirs(path, wildcard, search,
+                                                     ignore_errors):
                 yield item
         #  Otherwise, the wrapped FS may provide a more efficient impl
         #  which we can use directly.
