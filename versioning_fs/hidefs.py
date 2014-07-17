@@ -8,24 +8,28 @@ from fs.wrapfs import WrapFS
 import fnmatch
 
 
-class HideBackupFS(WrapFS):
-    """FS wrapper class that hides backups in directory listings.
+class HideFS(WrapFS):
+    """FS wrapper class that hides resources in directory listings.
 
     The listdir() function takes an extra keyword argument 'hidden'
-    indicating whether hidden backups should be included in the output.
+    indicating whether hidden resources should be included in the output.
     It is False by default.
     """
 
-    def __init__(self, wrapped_fs, hidden_dir=None):
-        super(HideBackupFS, self).__init__(wrapped_fs)
-        self.__hidden_dir = hidden_dir
+    def __init__(self, wrapped_fs, hidden_dirs=None):
+        super(HideFS, self).__init__(wrapped_fs)
+        self.__hidden_dirs = hidden_dirs
 
     def is_hidden(self, path):
         """Check whether the given path should be hidden."""
-        if path.startswith(self.__hidden_dir):
-            return True
-        if path.startswith("/%s" % self.__hidden_dir):
-            return True
+
+        if path.startswith("/"):
+            path = path[1:]
+
+        for hidden in self.__hidden_dirs:
+            if path.startswith(hidden):
+                return True
+
         return False
 
     def _encode(self, path):
@@ -63,7 +67,7 @@ class HideBackupFS(WrapFS):
             #  If there is a dir_wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(HideBackupFS, self).walk(path, wildcard,
+            for item in super(HideFS, self).walk(path, wildcard,
                                                        dir_wildcard,
                                                        search, ignore_errors):
                 yield item
@@ -91,7 +95,7 @@ class HideBackupFS(WrapFS):
             #  If there is a dir_wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(HideBackupFS, self).walkfiles(path, wildcard,
+            for item in super(HideFS, self).walkfiles(path, wildcard,
                                                             dir_wildcard,
                                                             search,
                                                             ignore_errors):
@@ -120,7 +124,7 @@ class HideBackupFS(WrapFS):
             #  If there is a wildcard, fall back to the default impl
             #  that uses listdir().  Otherwise we run the risk of enumerating
             #  lots of directories that will just be thrown away.
-            for item in super(HideBackupFS, self).walkdirs(path, wildcard,
+            for item in super(HideFS, self).walkdirs(path, wildcard,
                                                            search,
                                                            ignore_errors):
                 yield item

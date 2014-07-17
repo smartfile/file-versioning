@@ -64,7 +64,7 @@ class BaseTimeSensitiveTest(unittest.TestCase):
 
 class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTimeSensitiveTest):
     """Test basic and advanced fs functionality."""
-    pass
+    maxDiff = None
 
 
 class TestSnapshotAttributes(BaseTest):

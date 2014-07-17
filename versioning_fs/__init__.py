@@ -15,7 +15,7 @@ from fs.errors import OperationFailedError, ResourceNotFoundError
 from fs.path import relpath
 
 from versioning_fs.errors import SnapshotError, VersionError
-from versioning_fs.hidebackupfs import HideBackupFS
+from versioning_fs.hidefs import HideFS
 
 
 hasher = hashlib.sha256  # hashing function to use with backup paths
@@ -80,7 +80,7 @@ class VersionInfoMixIn(object):
         return info
 
 
-class VersioningFS(VersionInfoMixIn, HideBackupFS):
+class VersioningFS(VersionInfoMixIn, HideFS):
     """ Versioning filesystem.
 
         This wraps other filesystems, such as OSFS.
@@ -98,7 +98,7 @@ class VersioningFS(VersionInfoMixIn, HideBackupFS):
         """
         hide_abs_path = os.path.split(backup.getsyspath('/'))[0]
         # make sure the backups directory is hidden from the user
-        hide = os.path.basename(hide_abs_path)
+        hide = [os.path.basename(hide_abs_path)]
         super(VersioningFS, self).__init__(fs, hide)
 
         self.__fs = fs
