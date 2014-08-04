@@ -334,7 +334,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
             date_to_delete = version
 
         snap_dir = self.snapshot_snap_path(path)
-        command = ['rdiff-backup', '--parsable-output',
+        command = ['rdiff-backup', '--parsable-output', '--force',
                    '--remove-older-than', str(date_to_delete), snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
         stderr = process.communicate()[1]
