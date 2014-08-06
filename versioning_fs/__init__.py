@@ -1,6 +1,7 @@
 """ Filesystem wrapper that provides versioning capabilities through
     rdiff-backup.
 """
+from collections import namedtuple
 import hashlib
 import os
 import random
@@ -19,6 +20,8 @@ from versioning_fs.hidefs import HideFS
 
 
 hasher = hashlib.sha256  # hashing function to use with backup paths
+
+VersionInfo = namedtuple('VersionInfo', ['timestamp',  'size'])
 
 
 def hash_path(path):
@@ -78,6 +81,32 @@ class VersionInfoMixIn(object):
 
         info = {k+1: formatted_time(int(v)) for k, v in enumerate(versions)}
         return info
+
+    def list_sizes(self, path):
+        """Returns a dictionary containing sizes for each version of a path.
+        """
+        snap_dir = self.snapshot_snap_path(path)
+        command = ['rdiff-backup', '--parsable-output',
+                   '--list-increment-sizes', snap_dir]
+        process = Popen(command, stdout=PIPE, stderr=PIPE)
+        stdout = process.communicate()[0]
+
+        listing_file = StringIO(stdout)
+        # skip the first two lines of output
+        for _ in range(2):
+            next(listing_file)
+
+        # generate a dictionary
+        sizes = dict()
+        for version, line in enumerate(reversed(listing_file.readlines())):
+            if 'current' in line:
+                size = line[::-1].split('  ')[1][::-1].rstrip()
+            else:
+                size = line[::-1].split('  ')[0][::-1].rstrip()
+
+            sizes[version+1] = size
+
+        return sizes
 
 
 class VersioningFS(VersionInfoMixIn, HideFS):

@@ -67,7 +67,7 @@ class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTimeSensitiveTest):
     maxDiff = None
 
 
-class TestSnapshotAttributes(BaseTest):
+class TestSnapshotAttributes(BaseTimeSensitiveTest):
     """Test meta data manipulation for the files involved in snapshots."""
     def test_snapshot_file_versions(self):
         # make sure no snapshot information exists yet
@@ -133,6 +133,17 @@ class TestSnapshotAttributes(BaseTest):
             current_date = dates[z]
             next_date = dates[z+1]
             self.assertTrue(current_date <= next_date)
+
+    def test_file_version_sizes(self):
+        """Test version sizes for a specific path."""
+        file_name = random_filename()
+
+        for _ in range(3):
+            with self.fs.open(file_name, 'wb') as f:
+                f.write(random_filename())
+                f.write('\n')
+
+        self.assertEqual(len(self.fs.list_sizes(file_name).keys()), 3)
 
     def assert_all_file_versions_equal(self, version):
         for path in self.fs.walkfiles('/'):
