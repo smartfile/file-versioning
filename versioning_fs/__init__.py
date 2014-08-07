@@ -92,6 +92,10 @@ class VersionInfoMixIn(object):
         stdout = process.communicate()[0]
 
         listing_file = StringIO(stdout)
+        if len(listing_file.readlines()) < 3:
+            listing_file.seek(0)
+            return []
+
         # skip the first two lines of output
         for _ in range(2):
             next(listing_file)
