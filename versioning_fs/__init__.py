@@ -94,7 +94,7 @@ class VersionInfoMixIn(object):
         listing_file = StringIO(stdout)
         if len(listing_file.readlines()) < 3:
             listing_file.seek(0)
-            return []
+            return {}
 
         # skip the first two lines of output
         for _ in range(2):
