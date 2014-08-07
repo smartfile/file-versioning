@@ -104,11 +104,7 @@ class VersionInfoMixIn(object):
         # generate a dictionary
         sizes = dict()
         for version, line in enumerate(reversed(listing_file.readlines())):
-            if 'current' in line:
-                size = line[::-1].split('  ')[1][::-1].rstrip()
-            else:
-                size = line[::-1].split('  ')[0][::-1].rstrip()
-
+            size = "%s %s" % (line.split()[5], line.split()[6])
             sizes[version+1] = size
 
         return sizes
