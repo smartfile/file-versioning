@@ -63,7 +63,6 @@ class BaseTimeSensitiveTest(unittest.TestCase):
 
 
 class TestVersioningFS(FSTestCases, ThreadingTestCases, BaseTimeSensitiveTest):
-    """Test basic and advanced fs functionality."""
     maxDiff = None
 
 
@@ -285,7 +284,7 @@ class TestVersionDeletion(BaseTimeSensitiveTest):
         self.assertEqual(total_versions, 2)
 
 
-class TestRdiffBackupLimitations(BaseTimeSensitiveTest):
+class TestRdiffBackupSleep(BaseTimeSensitiveTest):
     """Rdiff backup cannot make two snapshots within 1 second.
        This test checks that the filewrapper sleeps for 1 second before
        trying to make a snapshot.
@@ -309,22 +308,22 @@ class TestFileOperations(BaseTest):
         # have 2 versions of a file we create
         file_name = random_filename()
 
-        f = self.fs.open(file_name, 'wb')
-        f.write("smartfile")
-        f.close()
+        contents = ["smartfile", "smartfile versioning"]
 
-        f = self.fs.open(file_name, 'wb')
-        f.write("smartfile versioning")
-        f.close()
+        for content in contents:
+            f = self.fs.open(file_name, 'wb')
+            f.write(content)
+            f.close()
 
         # move the file somewhere else
         new_filename = random_filename()
         self.fs.move(file_name, new_filename)
 
         # check if versioning is still available
-        f = self.fs.open(new_filename, 'rb', version=2)
-        self.assertEqual(f.read(), "smartfile versioning")
-        f.close()
+        for version, content in enumerate(contents):
+            f = self.fs.open(new_filename, 'rb', version=version+1)
+            self.assertEqual(f.read(), contents[version+1])
+            f.close()
 
     def test_move_single_directory(self):
         """Move a directory, which should also move the backups."""
@@ -337,21 +336,21 @@ class TestFileOperations(BaseTest):
         # create a directory for the file we are going to create
         self.fs.makedir(dir1_name)
 
-        f = self.fs.open(file1_full_path, 'wb')
-        f.write("smartfile")
-        f.close()
+        contents = ["smartfile", "smartfile versioning"]
 
-        f = self.fs.open(file1_full_path, 'wb')
-        f.write("smartfile versioning")
-        f.close()
+        for content in contents:
+            f = self.fs.open(file1_full_path, 'wb')
+            f.write(content)
+            f.close()
 
         # move the directory
         self.fs.movedir(dir1_name, dir2_name)
 
-         # check if versioning is still available
-        f = self.fs.open(file1_new_full_path, 'rb', version=2)
-        self.assertEqual(f.read(), "smartfile versioning")
-        f.close()
+        # check if versioning is still available
+        for version, content in enumerate(contents):
+            f = self.fs.open(file1_new_full_path, 'rb', version=version+1)
+            self.assertEqual(f.read(), contents[version+1])
+            f.close()
 
     def test_remove_single_file(self):
         """Remove a single file along with its backups."""
