@@ -296,7 +296,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
             with temp_snapshot_fs.open('datafile', 'wb') as temp_file:
                 shutil.copyfileobj(source_file, temp_file)
 
-         # snapshot destination directory
+        # snapshot destination directory
         dest_dir = self.snapshot_snap_path(path)
 
         command = ['rdiff-backup', '--parsable-output', '--no-eas',
