@@ -14,6 +14,7 @@ from fs.base import synchronize
 from fs.filelike import FileWrapper
 from fs.errors import OperationFailedError, ResourceNotFoundError
 from fs.path import relpath
+from fs.tempfs import TempFS
 
 from versioning_fs.errors import SnapshotError, VersionError
 from versioning_fs.hidefs import HideFS
@@ -213,9 +214,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
                 process = Popen(command, stdout=PIPE, stderr=PIPE)
                 process.communicate()
 
-                dest_hash = hash_path(path)
-
-                file_path = os.path.join(temp_name, dest_hash)
+                file_path = os.path.join(temp_name, 'datafile')
                 open_file = self.tmp.open(file_path, mode=mode)
                 return VersionedFile(fs=self, file_object=open_file,
                                      mode=mode, temp_file=True,
@@ -284,31 +283,24 @@ class VersioningFS(VersionInfoMixIn, HideFS):
     def snapshot(self, path):
         """Takes a snapshot of an individual file."""
 
-        # relative to the mounted fs, what should be snapshotted and where
-        # should it go
-        snap_source_dir = self.snapshot_source(path)
-        snap_dest_dir = self.snapshot_snap_path(path)
+        # try grabbing the temp filesystem system path
+        temp_dir = None
+        if 'getsyspath' in dir(self.tmp):
+            temp_dir = self.tmp.getsyspath('/')
 
-        # create the directory where the snapshot will be taken from
-        if os.path.exists(snap_source_dir):
-            shutil.rmtree(snap_source_dir)
-        os.makedirs(snap_source_dir)
-        if not self.has_snapshot(path):
-            os.makedirs(snap_dest_dir)
+        # Create a temp file system to be snapshotted
+        temp_snapshot_fs = TempFS(temp_dir=temp_dir)
+        src_path = temp_snapshot_fs.getsyspath('/')
 
-        link_src = self.fs.getsyspath(path)
+        with self.fs.open(path, 'rb') as source_file:
+            with temp_snapshot_fs.open('datafile', 'wb') as temp_file:
+                shutil.copyfileobj(source_file, temp_file)
 
-        dest_hash = hash_path(path)
-        link_dst = os.path.join(snap_source_dir, dest_hash)
-
-        # hardlink the user file to a file inside a temp dir
-        os.link(link_src, link_dst)
-
-        src_path = os.path.join(self.__tmp.getsyspath('/'), snap_source_dir)
-        dest_path = snap_dest_dir
+         # snapshot destination directory
+        dest_dir = self.snapshot_snap_path(path)
 
         command = ['rdiff-backup', '--parsable-output', '--no-eas',
-                   '--no-file-statistics', '--no-acls', src_path, dest_path]
+                   '--no-file-statistics', '--no-acls', src_path, dest_dir]
 
         # speed up the tests
         if self.__testing:
@@ -326,8 +318,8 @@ class VersioningFS(VersionInfoMixIn, HideFS):
                 if not rule(stderr):
                     raise SnapshotError(stderr)
 
-        # remove  the intermediate directory
-        shutil.rmtree(snap_source_dir)
+        # close the temp snapshot filesystem
+        temp_snapshot_fs.close()
 
     def remove_versions_before(self, path, version):
         """Removes snapshots before a specified version.
@@ -392,15 +384,6 @@ class VersioningFS(VersionInfoMixIn, HideFS):
         backup_dir = self.backup.getsyspath('/')
         save_snap_dir = os.path.join(backup_dir, dest_hash)
         return save_snap_dir
-
-    def snapshot_source(self, path):
-        """Returns the dir of the file to be snapshotted. This dir should
-           contain a hardlink to the original file in the user files
-           directory.
-        """
-
-        snap_dir = "%s.backup" % (self.snapshot_info_path(path))
-        return snap_dir
 
 
 class VersionedFile(FileWrapper):

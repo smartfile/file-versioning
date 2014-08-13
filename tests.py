@@ -322,11 +322,11 @@ class TestFileOperations(BaseTest):
         # check if versioning is still available
         for version, content in enumerate(contents):
             f = self.fs.open(new_filename, 'rb', version=version+1)
-            self.assertEqual(f.read(), contents[version+1])
+            self.assertEqual(f.read(), contents[version])
             f.close()
 
     def test_move_single_directory(self):
-        """Move a directory, which should also move the backups."""
+        """Move a directory and check that backups were moved."""
         file1_name = random_filename()
         dir1_name = random_filename()
         dir2_name = random_filename()
@@ -349,7 +349,7 @@ class TestFileOperations(BaseTest):
         # check if versioning is still available
         for version, content in enumerate(contents):
             f = self.fs.open(file1_new_full_path, 'rb', version=version+1)
-            self.assertEqual(f.read(), contents[version+1])
+            self.assertEqual(f.read(), contents[version])
             f.close()
 
     def test_remove_single_file(self):
