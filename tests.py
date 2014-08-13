@@ -311,9 +311,8 @@ class TestFileOperations(BaseTest):
         contents = ["smartfile", "smartfile versioning"]
 
         for content in contents:
-            f = self.fs.open(file_name, 'wb')
-            f.write(content)
-            f.close()
+            with self.fs.open(file_name, 'wb') as f:
+                f.write(content)
 
         # move the file somewhere else
         new_filename = random_filename()
@@ -321,11 +320,35 @@ class TestFileOperations(BaseTest):
 
         # check if versioning is still available
         for version, content in enumerate(contents):
-            f = self.fs.open(new_filename, 'rb', version=version+1)
+            with self.fs.open(new_filename, 'rb', version=version+1) as f:
+                self.assertEqual(f.read(), contents[version])
+
+    def test_move_file_into_directory(self):
+        """Move a file into a directory and check that backups were moved."""
+        file_name = random_filename()
+        dir_name = random_filename()
+        file_path = os.path.join(dir_name, file_name)
+
+        contents = ["smartfile", "smartfile versioning",
+                    "smartfile versioning rocks"]
+
+        for content in contents:
+            with self.fs.open(file_name, 'wb') as f:
+                f.write(content)
+
+        # create a directory for the file to be moved into
+        self.fs.makedir(dir_name)
+        # move the file into the directory
+        self.fs.move(file_name, file_path)
+
+        # check if versioning is still available
+        self.assertTrue(self.fs.has_snapshot(file_path))
+        for version, content in enumerate(contents):
+            f = self.fs.open(file_path, 'rb', version=version+1)
             self.assertEqual(f.read(), contents[version])
             f.close()
 
-    def test_move_single_directory(self):
+    def test_move_directory(self):
         """Move a directory and check that backups were moved."""
         file1_name = random_filename()
         dir1_name = random_filename()
@@ -339,16 +362,38 @@ class TestFileOperations(BaseTest):
         contents = ["smartfile", "smartfile versioning"]
 
         for content in contents:
-            f = self.fs.open(file1_full_path, 'wb')
-            f.write(content)
-            f.close()
+            with self.fs.open(file1_full_path, 'wb') as f:
+                f.write(content)
 
         # move the directory
         self.fs.movedir(dir1_name, dir2_name)
 
         # check if versioning is still available
+        self.assertTrue(self.fs.has_snapshot(file1_new_full_path))
         for version, content in enumerate(contents):
             f = self.fs.open(file1_new_full_path, 'rb', version=version+1)
+            self.assertEqual(f.read(), contents[version])
+            f.close()
+
+    def test_rename_file(self):
+        """Rename a file and check that backups were moved."""
+        file_name = random_filename()
+        file2_name = random_filename()
+
+        contents = ["smartfile", "smartfile versioning",
+                    "smartfile versioning rocks"]
+
+        for content in contents:
+            with self.fs.open(file_name, 'wb') as f:
+                f.write(content)
+
+        # Rename the file
+        self.fs.rename(file_name, file2_name)
+
+        # check if versioning is still available
+        self.assertTrue(self.fs.has_snapshot(file2_name))
+        for version, content in enumerate(contents):
+            f = self.fs.open(file2_name, 'rb', version=version+1)
             self.assertEqual(f.read(), contents[version])
             f.close()
 
@@ -356,9 +401,8 @@ class TestFileOperations(BaseTest):
         """Remove a single file along with its backups."""
         file_name = random_filename()
 
-        f = self.fs.open(file_name, 'wb')
-        f.write("smartfile")
-        f.close()
+        with self.fs.open(file_name, 'wb') as f:
+            f.write("smartfile")
 
         self.fs.remove(file_name)
 

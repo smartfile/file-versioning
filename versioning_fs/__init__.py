@@ -321,6 +321,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
         # close the temp snapshot filesystem
         temp_snapshot_fs.close()
 
+    @synchronize
     def remove_versions_before(self, path, version):
         """Removes snapshots before a specified version.
 
