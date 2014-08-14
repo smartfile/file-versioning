@@ -397,6 +397,33 @@ class TestFileOperations(BaseTest):
             self.assertEqual(f.read(), contents[version])
             f.close()
 
+    def test_rename_directory(self):
+        """Rename a directory and check that backups were moved."""
+        file1_name = random_filename()
+        dir1_name = random_filename()
+        dir2_name = random_filename()
+        file1_full_path = os.path.join(dir1_name, file1_name)
+        file1_new_full_path = os.path.join(dir2_name, file1_name)
+
+        # create a directory for the file we are going to create
+        self.fs.makedir(dir1_name)
+
+        contents = ["smartfile", "smartfile versioning"]
+
+        for content in contents:
+            with self.fs.open(file1_full_path, 'wb') as f:
+                f.write(content)
+
+        # move the directory
+        self.fs.rename(dir1_name, dir2_name)
+
+        # check if versioning is still available
+        self.assertTrue(self.fs.has_snapshot(file1_new_full_path))
+        for version, content in enumerate(contents):
+            f = self.fs.open(file1_new_full_path, 'rb', version=version+1)
+            self.assertEqual(f.read(), contents[version])
+            f.close()
+
     def test_remove_single_file(self):
         """Remove a single file along with its backups."""
         file_name = random_filename()

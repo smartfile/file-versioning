@@ -266,9 +266,21 @@ class VersioningFS(VersionInfoMixIn, HideFS):
     def rename(self, src, dst):
         """Rename a file."""
 
+        # collect a list of paths
+        paths = []
+        if super(VersioningFS, self).isdir(src):
+            for path in super(VersioningFS, self).walkfiles(src):
+                paths.append(path)
+        else:
+            paths = [src]
+
         # rename the file
         super(VersioningFS, self).rename(src, dst)
-        self.__move_snapshot(src, dst)
+
+        # move versions under the path
+        for path in paths:
+            dst_path = path.replace(src, dst)
+            self.__move_snapshot(path, dst_path)
 
     def __move_snapshot(self, src, dst):
         """Move the snapshot associated with a file."""
