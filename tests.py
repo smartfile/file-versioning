@@ -161,7 +161,7 @@ class TestSnapshotAttributes(BaseTimeSensitiveTest):
 
 class TestFileVersions(BaseTest):
     """Test file versions."""
-    def test_single_file_updating(self):
+    def test_single_file_write(self):
         file_name = random_filename()
 
         f = self.fs.open(file_name, 'wb')
@@ -185,7 +185,37 @@ class TestFileVersions(BaseTest):
         f = self.fs.open(file_name, 'rb')
         self.assertEqual(f.readlines(), ["hello world!\n", "hello world!"])
         f.close()
-        # make sure the version has not been updated
+
+        # make sure the version has not been updated since reading
+        self.assertEqual(self.fs.version(file_name), 2)
+
+    def test_single_file_append(self):
+        file_name = random_filename()
+
+        f = self.fs.open(file_name, 'ab')
+        f.write('smartfile_versioning_rocks\n')
+        f.close()
+
+        # check that version 1 was created
+        self.assertEqual(self.fs.version(file_name), 1)
+
+        f = self.fs.open(file_name, 'rb')
+        self.assertEqual(f.read(), 'smartfile_versioning_rocks\n')
+        f.close()
+
+        # make some changes to the file and check for version increment
+        f = self.fs.open(file_name, 'ab')
+        f.writelines("hello world!\nhello world!")
+        f.close()
+        self.assertEqual(self.fs.version(file_name), 2)
+
+        # check the contents when we open the file
+        f = self.fs.open(file_name, 'rb')
+        self.assertEqual(f.readlines(), ['smartfile_versioning_rocks\n',
+                                         "hello world!\n", "hello world!"])
+        f.close()
+
+        # make sure the version has not been updated since reading
         self.assertEqual(self.fs.version(file_name), 2)
 
     def test_open_old_version(self):
