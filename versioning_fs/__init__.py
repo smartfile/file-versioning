@@ -158,7 +158,8 @@ class VersioningFS(VersionInfoMixIn, HideFS):
         super(VersioningFS, self).close(*args, **kwargs)
 
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
-             newline=None, line_buffering=False, version=None, **kwargs):
+             newline=None, line_buffering=False, version=None,
+             take_snapshot=True, **kwargs):
         """
         Returns a file-object. The file-object is wrapped with VersionedFile,
             which will notify VersioningFS to make a snapshot whenever
@@ -170,6 +171,8 @@ class VersioningFS(VersionInfoMixIn, HideFS):
           version (int) (optional): Specifies which version of the file to
             get. If version is set to None, the most recent copy of the file
             will be returned.
+          snapshot (bool): Set to False to avoid taking a snapshot. Defaults
+            to True.
         """
         path = relpath(path)
         if version is None:
@@ -180,7 +183,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
                                         line_buffering=line_buffering,
                                         **kwargs)
             return VersionedFile(fs=self, file_object=file_object, mode=mode,
-                                 path=path)
+                                 path=path, take_snapshot=take_snapshot)
         else:
             if version < 1:
                 raise ResourceNotFoundError("Version %s not found" %
@@ -193,7 +196,8 @@ class VersioningFS(VersionInfoMixIn, HideFS):
                                             line_buffering=line_buffering,
                                             **kwargs)
                 return VersionedFile(fs=self, file_object=file_object,
-                                     mode=mode, temp_file=False, path=path)
+                                     mode=mode, temp_file=False, path=path,
+                                     take_snapshot=take_snapshot)
 
             snap_dir = self.snapshot_snap_path(path)
 
@@ -400,12 +404,13 @@ class VersionedFile(FileWrapper):
        snapshot if the file has been modified.
     """
     def __init__(self, file_object, mode, fs, path, temp_file=False,
-                 remove=None):
+                 remove=None, take_snapshot=True):
         super(VersionedFile, self).__init__(file_object, mode)
         self.__fs = fs
         self.__path = path
         self._is_temp_file = temp_file
         self.__is_modified = False
+        self.__take_snapshot = take_snapshot
 
         self.__file_object = file_object
         self.__remove = remove
@@ -427,7 +432,7 @@ class VersionedFile(FileWrapper):
             remove = os.path.join(self.__fs.tmp, self.__remove)
             shutil.rmtree(remove)
 
-        if self.__is_modified:
+        if self.__take_snapshot and self.__is_modified:
             max_tries = 3  # limit the amount of tries to make a snapshot
 
             for _ in range(max_tries):

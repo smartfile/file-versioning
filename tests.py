@@ -268,6 +268,20 @@ class TestFileVersions(BaseTest):
         with self.assertRaises(ResourceNotFoundError):
             self.fs.open(file_name, 'rb', version=2)
 
+    def test_skip_version_snapshot(self):
+        """
+        Test opening a file but setting 'take_snapshot' to False.
+        A version should not be created.
+        """
+        file_name = random_filename()
+
+        f = self.fs.open(file_name, 'wb', take_snapshot=False)
+        f.write('smartfile_versioning_rocks\n')
+        f.close()
+
+        # check that version 1 was not created
+        self.assertEqual(self.fs.version(file_name), 0)
+
 
 class TestVersionDeletion(BaseTimeSensitiveTest):
     """Test the deletion of older versions."""
