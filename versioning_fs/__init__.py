@@ -414,6 +414,7 @@ class VersionedFile(FileWrapper):
 
         self.__file_object = file_object
         self.__remove = remove
+        self.__version_created = False
 
     def _write(self, *args, **kwargs):
         self.__is_modified = True
@@ -432,12 +433,14 @@ class VersionedFile(FileWrapper):
             remove = os.path.join(self.__fs.tmp, self.__remove)
             shutil.rmtree(remove)
 
-        if self.__take_snapshot and self.__is_modified:
+        if not self.__version_created and self.__take_snapshot and \
+                self.__is_modified:
             max_tries = 3  # limit the amount of tries to make a snapshot
 
             for _ in range(max_tries):
                 try:
                     self.__fs.snapshot(self.__path)
+                    self.__version_created = True
                 except SnapshotError:
                     # rdiff-backup must wait 1 second between the same file.
                     time.sleep(1)
