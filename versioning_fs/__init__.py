@@ -10,7 +10,6 @@ from StringIO import StringIO
 from subprocess import Popen, PIPE
 import time
 
-from fs.base import synchronize
 from fs.filelike import FileWrapper
 from fs.errors import OperationFailedError, ResourceNotFoundError
 from fs.path import relpath
@@ -158,7 +157,6 @@ class VersioningFS(VersionInfoMixIn, HideFS):
         self.__tmp.close()
         super(VersioningFS, self).close(*args, **kwargs)
 
-    @synchronize
     def open(self, path, mode='r', buffering=-1, encoding=None, errors=None,
              newline=None, line_buffering=False, version=None, **kwargs):
         """
@@ -205,7 +203,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
                                             (version))
 
             requested_version = sorted_versions[version-1]
-            if "w" not in mode:
+            if mode == "r" or mode == "rb":
                 temp_name = '%020x' % random.randrange(16**30)
                 dest_path = os.path.join(self.tmp.getsyspath('/'), temp_name)
                 command = ['rdiff-backup',
@@ -291,7 +289,6 @@ class VersioningFS(VersionInfoMixIn, HideFS):
                 shutil.rmtree(dst_snapshot)
             shutil.move(src_snapshot, dst_snapshot)
 
-    @synchronize
     def snapshot(self, path):
         """Takes a snapshot of an individual file."""
 
@@ -333,7 +330,6 @@ class VersioningFS(VersionInfoMixIn, HideFS):
         # close the temp snapshot filesystem
         temp_snapshot_fs.close()
 
-    @synchronize
     def remove_versions_before(self, path, version):
         """Removes snapshots before a specified version.
 
