@@ -282,6 +282,15 @@ class TestFileVersions(BaseTest):
         # check that version 1 was not created
         self.assertEqual(self.fs.version(file_name), 0)
 
+    def test_single_file_write_quickly(self):
+        file_name = random_filename()
+
+        for x in range(20):
+            f = self.fs.open(file_name, 'wb')
+            f.write(random_filename())
+            f.close()
+            self.assertEqual(self.fs.version(file_name), x+1)
+
 
 class TestVersionDeletion(BaseTimeSensitiveTest):
     """Test the deletion of older versions."""

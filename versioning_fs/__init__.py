@@ -52,6 +52,7 @@ class VersionInfoMixIn(object):
 
     def list_versions(self, path):
         """Returns a list of the versions for a file."""
+        time.sleep(1)
         snap_dir = self.snapshot_snap_path(path)
         command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
