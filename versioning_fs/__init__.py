@@ -3,7 +3,6 @@
 """
 from collections import namedtuple
 import hashlib
-import logging
 import os
 import random
 import shutil
@@ -18,10 +17,6 @@ from fs.tempfs import TempFS
 
 from versioning_fs.errors import SnapshotError, VersionError
 from versioning_fs.hidefs import HideFS
-
-
-LOGGER = logging.getLogger(__name__)
-logging.getLogger().setLevel(logging.DEBUG)
 
 
 hasher = hashlib.sha256  # hashing function to use with backup paths
@@ -57,22 +52,10 @@ class VersionInfoMixIn(object):
 
     def list_versions(self, path):
         """Returns a list of the versions for a file."""
-        time.sleep(1)
-
-        LOGGER.debug("VersionInfoMixin.list_versions(path:{})".format(path))
-
         snap_dir = self.snapshot_snap_path(path)
         command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
-
-        LOGGER.debug("List versions command:")
-        LOGGER.debug("##### START list_versions STDOUT: #####")
-        LOGGER.debug(stdout)
-        LOGGER.debug("##### END list_versions STDOUT: #####")
-        LOGGER.debug("##### START list_versions STDERR: #####")
-        LOGGER.debug(stderr)
-        LOGGER.debug("##### END list_versions STDERR: #####")
+        stdout = process.communicate()[0]
 
         versions = []
         listing_file = StringIO(stdout)
@@ -192,9 +175,6 @@ class VersioningFS(VersionInfoMixIn, HideFS):
             to True.
         """
         path = relpath(path)
-        
-        LOGGER.debug("VersioningFS.open(path:{} mode:{})".format(path, mode))
-        
         if version is None:
             instance = super(VersioningFS, self)
             file_object = instance.open(path=path, mode=mode,
@@ -316,8 +296,6 @@ class VersioningFS(VersionInfoMixIn, HideFS):
     def snapshot(self, path):
         """Takes a snapshot of an individual file."""
 
-        LOGGER.debug("VersioningFS.snapshot(path:{})".format(path))
-
         # try grabbing the temp filesystem system path
         temp_dir = None
         if 'getsyspath' in dir(self.tmp):
@@ -343,17 +321,8 @@ class VersioningFS(VersionInfoMixIn, HideFS):
             command.insert(6, str(self.__testing['time']))
             self.__testing['time'] += 1
 
-        LOGGER.debug("Snapshot command:")
-        LOGGER.debug(command)
         process = Popen(command, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
-
-        LOGGER.debug("##### START SNAPSHOT STDOUT: #####")
-        LOGGER.debug(stdout)
-        LOGGER.debug("##### END SNAPSHOT STDOUT: #####")
-        LOGGER.debug("##### START SNAPSHOT STDERR: #####")
-        LOGGER.debug(stderr)
-        LOGGER.debug("##### END SNAPSHOT STDERR: #####")
+        stderr = process.communicate()[1]
 
         ignore = [lambda x: x.startswith("Warning: could not determine case")]
 
@@ -447,9 +416,6 @@ class VersionedFile(FileWrapper):
         self.__remove = remove
         self.__version_created = False
 
-        debug_string = "VersionedFile instantiated: path:{} take_snapshot:{}"
-        LOGGER.debug(debug_string.format(self.__path, self.__take_snapshot))
-
     def _write(self, *args, **kwargs):
         self.__is_modified = True
         return super(VersionedFile, self)._write(*args, **kwargs)
@@ -473,17 +439,10 @@ class VersionedFile(FileWrapper):
 
             for _ in range(max_tries):
                 try:
-                    debug_string = "VersionedFile pre-snapshot: path:{} version:{}"
-                    LOGGER.debug(debug_string.format(self.__path, self.__fs.version(self.__path)))
-                    
                     self.__fs.snapshot(self.__path)
                     self.__version_created = True
-                    
-                    debug_string = "VersionedFile post-snapshot: path:{} version:{}"
-                    LOGGER.debug(debug_string.format(self.__path, self.__fs.version(self.__path)))
                 except SnapshotError:
                     # rdiff-backup must wait 1 second between the same file.
-                    LOGGER.debug("VersionedFile SnapshotError: path:{}".format(self.__path))
                     time.sleep(1)
                 else:
                     break
