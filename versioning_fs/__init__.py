@@ -53,7 +53,9 @@ class VersionInfoMixIn(object):
     def list_versions(self, path):
         """Returns a list of the versions for a file."""
         snap_dir = self.snapshot_snap_path(path)
-        command = ['rdiff-backup', '--parsable-output', '-l', snap_dir]
+        command = ['rdiff-backup',
+                   '--parsable-output',
+                   '-l', snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
         stdout = process.communicate()[0]
 
@@ -86,8 +88,10 @@ class VersionInfoMixIn(object):
         """Returns a dictionary containing sizes for each version of a path.
         """
         snap_dir = self.snapshot_snap_path(path)
-        command = ['rdiff-backup', '--parsable-output',
-                   '--list-increment-sizes', snap_dir]
+        command = ['rdiff-backup',
+                   '--parsable-output',
+                   '--list-increment-sizes',
+                   snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
         stdout = process.communicate()[0]
 
@@ -298,8 +302,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
 
         # try grabbing the temp filesystem system path
         temp_dir = None
-        if 'getsyspath' in dir(self.tmp):
-            temp_dir = self.tmp.getsyspath('/')
+        temp_dir = self.tmp.getsyspath('/')
 
         # Create a temp file system to be snapshotted
         temp_snapshot_fs = TempFS(temp_dir=temp_dir)
@@ -312,8 +315,13 @@ class VersioningFS(VersionInfoMixIn, HideFS):
         # snapshot destination directory
         dest_dir = self.snapshot_snap_path(path)
 
-        command = ['rdiff-backup', '--parsable-output', '--no-eas',
-                   '--no-file-statistics', '--no-acls', src_path, dest_dir]
+        command = ['rdiff-backup',
+                   '--parsable-output',
+                   '--no-eas',
+                   '--no-file-statistics',
+                   '--no-acls',
+                   '--tempdir', self.tmp.getsyspath('/'),
+                   src_path, dest_dir]
 
         # speed up the tests
         if self.__testing:
@@ -369,8 +377,12 @@ class VersioningFS(VersionInfoMixIn, HideFS):
             date_to_delete = version
 
         snap_dir = self.snapshot_snap_path(path)
-        command = ['rdiff-backup', '--parsable-output', '--force',
-                   '--remove-older-than', str(date_to_delete), snap_dir]
+        command = ['rdiff-backup',
+                   '--parsable-output',
+                   '--force',
+                   '--remove-older-than', str(date_to_delete),
+                   '--tempdir', self.tmp.getsyspath('/'),
+                   snap_dir]
         process = Popen(command, stdout=PIPE, stderr=PIPE)
         stderr = process.communicate()[1]
 
