@@ -38,7 +38,7 @@ class HideFS(WrapFS):
     def _decode(self, path):
         return path
 
-    def listdir(self, path="", wildcard=None, full=False, absolute=False,
+    def listdir(self, path="/", wildcard=None, full=False, absolute=False,
                 dirs_only=False, files_only=False, hidden=False):
         kwds = dict(wildcard=wildcard,
                     full=full,
@@ -50,7 +50,7 @@ class HideFS(WrapFS):
             entries = [e for e in entries if not self.is_hidden(e)]
         return entries
 
-    def ilistdir(self, path="", wildcard=None, full=False, absolute=False,
+    def ilistdir(self, path="/", wildcard=None, full=False, absolute=False,
                  dirs_only=False, files_only=False, hidden=False):
         kwds = dict(wildcard=wildcard,
                     full=full,
@@ -135,7 +135,7 @@ class HideFS(WrapFS):
                     continue
                 yield abspath(self._decode(dirpath))
 
-    def listdirinfo(self, path="./", wildcard=None, full=False,
+    def listdirinfo(self, path="/", wildcard=None, full=False,
                     absolute=False, dirs_only=False, files_only=False):
         """Retrieves a list of paths and path info under a given path.
 
