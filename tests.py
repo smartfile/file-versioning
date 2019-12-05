@@ -22,7 +22,7 @@ def generate_file(fs, path, size, generator=None):
         if generator is None:
             text = '12345678'
         else:
-            text = generator().next()
+            text = next(generator())
         for _ in range(size/len(text)):
             f.write(text)
 
@@ -116,7 +116,7 @@ class TestSnapshotAttributes(BaseTimeSensitiveTest):
         with self.fs.open(file_name, 'wb') as f:
             f.write('hello world\n')
 
-        self.assertEqual(len(self.fs.list_info(file_name).keys()), 1)
+        self.assertEqual(len(list(self.fs.list_info(file_name).keys())), 1)
 
         with self.fs.open(file_name, 'wb') as f:
             f.write('hello world123\n')
@@ -126,7 +126,7 @@ class TestSnapshotAttributes(BaseTimeSensitiveTest):
 
         version_info = self.fs.list_info(file_name)
 
-        dates = version_info.values()
+        dates = list(version_info.values())
 
         for z in range(len(dates) - 1):
             current_date = dates[z]
@@ -142,7 +142,7 @@ class TestSnapshotAttributes(BaseTimeSensitiveTest):
                 f.write(random_filename())
                 f.write('\n')
 
-        self.assertEqual(len(self.fs.list_sizes(file_name).keys()), 3)
+        self.assertEqual(len(list(self.fs.list_sizes(file_name).keys())), 3)
 
     def assert_all_file_versions_equal(self, version):
         for path in self.fs.walkfiles('/'):
@@ -322,7 +322,7 @@ class TestVersionDeletion(BaseTimeSensitiveTest):
         self.assertEqual(total_versions, 3)
 
         # try deleting a version with a string that is also a digit
-        self.fs.remove_versions_before(path=file_name, version=u'2')
+        self.fs.remove_versions_before(path=file_name, version='2')
         # we deleted versions older than 2 which deleted version 1
         total_versions = self.fs.version(file_name)
         self.assertEqual(total_versions, 2)

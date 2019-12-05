@@ -6,7 +6,7 @@ import hashlib
 import os
 import random
 import shutil
-from StringIO import StringIO
+from io import StringIO
 from subprocess import Popen, PIPE
 import time
 
@@ -355,7 +355,7 @@ class VersioningFS(VersionInfoMixIn, HideFS):
             raise OperationFailedError(path)
 
         # if the version number is a string, try converting it into an int
-        if isinstance(version, str) or isinstance(version, unicode):
+        if isinstance(version, str) or isinstance(version, str):
             try:
                 if str(version).isdigit():
                     version = int(version)
